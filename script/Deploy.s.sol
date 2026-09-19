@@ -3,6 +3,7 @@ pragma solidity ^0.8.19;
 
 import {Script, console2} from "forge-std/Script.sol";
 import {IMorpho, MarketParams} from "morpho-blue/interfaces/IMorpho.sol";
+import {Regime} from "../src/interfaces/IVigil.sol";
 import {Morpho} from "morpho-blue/Morpho.sol";
 import {MarketParamsLib} from "morpho-blue/libraries/MarketParamsLib.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -166,5 +167,19 @@ contract Deploy is Script {
         console2.log("VigilLossReporter   ", address(lossReporter));
         console2.log("Market id:");
         console2.logBytes32(bytes32(abi.encode(market.id())));
+        // post-deploy sanity: the oracle must price from the wired feeds right away (reverts only on CORP_ACTION or a stale feed)
+        (uint8 eff, uint8 cal,,) = _regime();
+        console2.log("Regime effective / calendar:", eff, cal);
+        try oracle.price() returns (uint256 p) {
+            console2.log("oracle.price() (1e36 scale):", p);
+            console2.log("unhaircutPrice():", oracle.unhaircutPrice());
+        } catch {
+            console2.log("oracle.price() REVERTS right now (stale feed or CORP_ACTION) - check MainnetPreflight");
+        }
+    }
+
+    function _regime() internal view returns (uint8, uint8, uint64, uint64) {
+        (Regime e, Regime cal, uint64 closeAt, uint64 nextOpen) = session.regimeOf(c.stock);
+        return (uint8(e), uint8(cal), closeAt, nextOpen);
     }
 }
