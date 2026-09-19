@@ -13,9 +13,9 @@ import {MockFeed} from "../src/mocks/MockFeed.sol";
 import {MockUSDG} from "../src/mocks/MockUSDG.sol";
 import {MockIRM} from "../src/mocks/MockIRM.sol";
 
-/// Demo (PRD §13): dua pasar identik NVDA/USDG LLTV 86% — A kontrol (oracle feed mentah), B Vigil — di-replay pada
-/// dua Senin nyata: 5 Agu 2024 (−14,18%) dan 27 Jan 2025 (−12,49%), lalu kasus member yang benar-benar underwater
-/// untuk menunjukkan `liquidateWithCover`. Jalankan tanpa broadcast:  forge script script/Demo.s.sol -vv
+/// Demo (PRD §13): two identical NVDA/USDG markets at 86 % LLTV — A control (raw feed oracle), B Vigil — replayed on
+/// two real Mondays: 5 Aug 2024 (−14.18 %) and 27 Jan 2025 (−12.49 %), then a member who is genuinely underwater
+/// to show `liquidateWithCover`. Run without broadcasting:  forge script script/Demo.s.sol -vv
 contract Demo is Script {
     using MarketParamsLib for MarketParams;
     using MorphoBalancesLib for IMorpho;
@@ -36,7 +36,7 @@ contract Demo is Script {
 
     function run() external {
         _replay(
-            "5 Agustus 2024  (NVDA 107.27 -> 92.06, -14.18%)",
+            "5 August 2024   (NVDA 107.27 -> 92.06, -14.18%)",
             1722621600,
             1722628500,
             1722864600,
@@ -44,7 +44,7 @@ contract Demo is Script {
             9205999756
         );
         _replay(
-            "27 Januari 2025 (NVDA 142.62 -> 124.80, -12.49%)",
+            "27 January 2025 (NVDA 142.62 -> 124.80, -12.49%)",
             1737745200,
             1737752100,
             1737988200,
@@ -157,7 +157,7 @@ contract Demo is Script {
         r.ltvA0 = _ltvPct(mA, carol);
         r.ltvB0 = _ltvPct(mB, alice);
 
-        // Jumat 15:00: jendela pre-close → soft unwind member (diskon 1,5%)
+        // Friday 15:00: pre-close window → soft unwind of the member (1.5 % discount)
         vm.warp(fri1400 + 1 hours);
         r.disc = d.preLiq.currentDiscountBps(mB.id(), alice);
         vm.prank(liquidator);
@@ -165,14 +165,14 @@ contract Demo is Script {
         r.ltvB1 = _ltvPct(mB, alice);
         r.hAtClose = d.oracle.currentHaircutBps();
 
-        // akhir pekan beku, premi mengalir
+        // the weekend is frozen, the premium flows
         feed.setAt(closePx, fri1555);
         vm.warp(fri1555 + 30 hours);
         d.premium.accrue(mB.id(), alice);
         r.premiumPaid = d.premium.totalPaid();
         r.hWeekend = d.oracle.currentHaircutBps();
 
-        // Senin open: gap tercetak; likuidator bertindak di kedua pasar
+        // Monday open: the gap prints; the liquidator acts in both markets
         vm.warp(mon0930 + 5 minutes);
         feed.set(openPx);
         uint256 collCarol = morpho.position(mA.id(), carol).collateral;
@@ -189,23 +189,23 @@ contract Demo is Script {
     function _print(string memory title) internal view {
         console2.log("");
         console2.log("=== REPLAY:", title, "===");
-        console2.log("                                    Market A (kontrol) | Market B (Vigil)");
-        console2.log("LTV awal Jumat 14:00 (bps)          ", r.ltvA0, "|", r.ltvB0);
-        console2.log("Soft unwind Jumat 15:00 (diskon bps) -                  |", r.disc);
+        console2.log("                                    Market A (control) | Market B (Vigil)");
+        console2.log("Initial LTV Friday 14:00 (bps)      ", r.ltvA0, "|", r.ltvB0);
+        console2.log("Soft unwind Friday 15:00 (disc. bps) -                  |", r.disc);
         console2.log("  repaid USDG (6d) / seized NVDA(18d) -                  |", r.repaid, r.seized);
-        console2.log("LTV setelah unwind (bps)            ", r.ltvA0, "|", r.ltvB1);
-        console2.log("Haircut oracle pasar 15:00 / wknd    0 / 0              |", r.hAtClose, r.hWeekend);
-        console2.log("Premi akhir pekan ke backstop (6d)   0                  |", r.premiumPaid);
-        console2.log("Bad debt tersosialisasi (USDG 6d)   ", r.lossA, "|", r.lossB);
-        console2.log("Backstop dipakai (USDG 6d)           -                  |", d.backstop.totalCovered());
+        console2.log("LTV after the unwind (bps)          ", r.ltvA0, "|", r.ltvB1);
+        console2.log("Market oracle haircut 15:00 / wknd   0 / 0              |", r.hAtClose, r.hWeekend);
+        console2.log("Weekend premium to backstop (6d)     0                  |", r.premiumPaid);
+        console2.log("Socialized bad debt (USDG 6d)       ", r.lossA, "|", r.lossB);
+        console2.log("Backstop used (USDG 6d)              -                  |", d.backstop.totalCovered());
     }
 
-    /// Member yang tetap max-LTV saat gap tercetak (mis. membuka posisi Senin pagi) → cover dari backstop.
+    /// A member still at max LTV when the gap prints (e.g. opened the position Monday morning) → covered by the backstop.
     function _coverCase() internal {
         uint64 fri1400 = 1722621600;
         _deploy(fri1400, 120e8);
         _open(mB, alice, 10e18, 0.86e18, true);
-        vm.warp(1722864600 + 30 minutes); // Senin 10:00, dalam coverWindow
+        vm.warp(1722864600 + 30 minutes); // Monday 10:00, inside the coverWindow
         feed.set(120e8 * 88 / 100);
         (uint256 shortfall, uint256 coverable, bool member, bool covered) = d.lossReporter.previewCover(mB.id(), alice);
         uint256 sB0 = morpho.market(mB.id()).totalSupplyAssets;
@@ -213,12 +213,12 @@ contract Demo is Script {
         vm.prank(liquidator);
         (,, uint256 got) = d.lossReporter.liquidateWithCover(mB.id(), alice, "");
         console2.log("");
-        console2.log("=== COVER: member max-LTV terkena gap -12% Senin 10:00 ===");
+        console2.log("=== COVER: max-LTV member hit by the -12% gap, Monday 10:00 ===");
         console2.log("shortfall (USDG 6d)               ", shortfall);
-        console2.log("coverable / member / rezim tercakup", coverable, member, covered);
-        console2.log("dicover backstop (USDG 6d)        ", got);
-        console2.log("pemasok: totalSupplyAssets sebelum/sesudah", sB0, morpho.market(mB.id()).totalSupplyAssets);
-        console2.log("backstop: totalAssets sebelum/sesudah     ", bs0, d.backstop.totalAssets());
-        console2.log("borrowShares alice sesudah        ", morpho.position(mB.id(), alice).borrowShares);
+        console2.log("coverable / member / regime covered", coverable, member, covered);
+        console2.log("covered by the backstop (USDG 6d) ", got);
+        console2.log("suppliers: totalSupplyAssets before/after ", sB0, morpho.market(mB.id()).totalSupplyAssets);
+        console2.log("backstop: totalAssets before/after        ", bs0, d.backstop.totalAssets());
+        console2.log("borrowShares alice after          ", morpho.position(mB.id(), alice).borrowShares);
     }
 }

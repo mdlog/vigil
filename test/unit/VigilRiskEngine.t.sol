@@ -50,7 +50,7 @@ contract VigilRiskEngineTest is Test {
         );
         vm.stopPrank();
         vm.prank(calibrator);
-        risk.setSurface(address(nvda), _surface(0.016e18)); // NVDA terkalibrasi: σ 1,6%, k 3,0
+        risk.setSurface(address(nvda), _surface(0.016e18)); // calibrated NVDA: σ 1.6 %, k 3.0
     }
 
     function _surface(uint64 sigma) internal pure returns (VigilRiskEngine.Surface memory) {
@@ -62,14 +62,14 @@ contract VigilRiskEngineTest is Test {
         return risk.haircutBps(address(nvda));
     }
 
-    // Nilai §6.6: akhir pekan 976–977 bps, malam biasa 530, akhir pekan panjang ≈1.133, earnings (4,2×) ≈2.066
+    // §6.6 values: weekend 976–977 bps, ordinary night 530, long weekend ≈ 1,133, earnings (4.2×) ≈ 2,066
     function test_closureHaircut_matchesCalibratedNumbers() public view {
         VigilRiskEngine.Surface memory sf = _surface(0.016e18);
         assertApproxEqAbs(risk.closureHaircutBps(sf, 235_800, 10_000), 977, 2);
         assertApproxEqAbs(risk.closureHaircutBps(sf, 63_000, 10_000), 530, 1);
         assertApproxEqAbs(risk.closureHaircutBps(sf, 322_200, 10_000), 1_133, 3);
         assertApproxEqAbs(risk.closureHaircutBps(sf, 63_000, 42_000), 2_066, 3);
-        assertEq(risk.closureHaircutBps(sf, 63_000, 100_000), 2_500); // dibatasi GLOBAL_H_MAX (INV-4)
+        assertEq(risk.closureHaircutBps(sf, 63_000, 100_000), 2_500); // capped by GLOBAL_H_MAX (INV-4)
     }
 
     function testFuzz_INV2_monotoneInClosureLength(uint64 l1, uint64 l2, uint16 mult) public view {
@@ -81,26 +81,26 @@ contract VigilRiskEngineTest is Test {
     }
 
     function test_weekendRampInConstantRampOut() public {
-        assertEq(_h(), 0); // 14:00, di luar preCloseWindow
+        assertEq(_h(), 0); // 14:00, outside preCloseWindow
         assertEq(risk.targetHaircutBps(address(nvda)), 0);
         vm.warp(FRI_1430);
-        assertEq(_h(), 0); // ramp mulai tepat di T−90m
+        assertEq(_h(), 0); // the ramp starts exactly at T−90m
         assertEq(risk.targetHaircutBps(address(nvda)), 977);
         vm.warp(FRI_1500);
-        assertApproxEqAbs(_h(), 488, 2); // separuh jalan
+        assertApproxEqAbs(_h(), 488, 2); // halfway
         vm.warp(FRI_1530);
-        assertApproxEqAbs(_h(), 977, 2); // penuh 30 menit sebelum close (G1)
+        assertApproxEqAbs(_h(), 977, 2); // full 30 minutes before the close (G1)
         vm.warp(FRI_1600);
         assertApproxEqAbs(_h(), 977, 2);
         vm.warp(SAT_1200);
-        assertApproxEqAbs(_h(), 977, 2); // konstan sepanjang penutupan (INV-2)
+        assertApproxEqAbs(_h(), 977, 2); // constant throughout the closure (INV-2)
         vm.warp(SUN_2100);
         assertApproxEqAbs(_h(), 977, 2);
         vm.warp(MON_0930 - 1);
         assertApproxEqAbs(_h(), 977, 2);
         vm.warp(MON_0930);
         feed.set(100e8);
-        assertApproxEqAbs(_h(), 977, 2); // ramp-out mulai
+        assertApproxEqAbs(_h(), 977, 2); // the ramp-out starts
         assertEq(risk.targetHaircutBps(address(nvda)), 0);
         vm.warp(MON_0930 + 30 minutes);
         assertApproxEqAbs(_h(), 488, 2);
@@ -118,7 +118,7 @@ contract VigilRiskEngineTest is Test {
     }
 
     function test_keeperHaltRampsFromAttestation() public {
-        // halt ad-hoc pada 14:00 (di luar preCloseWindow): tanpa tightSince akan menjadi step
+        // an ad-hoc halt at 14:00 (outside preCloseWindow): without tightSince it would be a step
         uint256 pk = 0xBEEF;
         VigilSessionOracle.Attestation memory a = VigilSessionOracle.Attestation({
             asset: address(nvda),
@@ -132,15 +132,15 @@ contract VigilRiskEngineTest is Test {
         so.attest(a, abi.encodePacked(r, s, v));
         assertEq(_h(), 0);
         vm.warp(FRI_1400 + 30 minutes);
-        // L = Sen 09:30 − Jum 14:00 = 243.000 s → H ≈ 992; separuh target setelah 30 menit — klaim T2 di PRD
+        // L = Mon 09:30 − Fri 14:00 = 243,000 s → H ≈ 992; half the target after 30 minutes — the T2 claim in the PRD
         assertApproxEqAbs(_h(), 496, 2);
     }
 
-    /// INV-3 / FR-3: pengetatan keeper di tengah penutupan kalender tidak pernah MENURUNKAN haircut. Ditemukan
-    /// fuzzer: attestation CLOSED pada 19:58 (EXTENDED, haircut penuh) membuat ramp mulai dari nol → harga
-    /// melompat naik, lalu turun 500 bps saat kalender ikut CLOSED 87 detik kemudian.
+    /// INV-3 / FR-3: a keeper tightening in the middle of a calendar closure never LOWERS the haircut. Found by
+    /// the fuzzer: a CLOSED attestation at 19:58 (EXTENDED, full haircut) restarted the ramp from zero → the price
+    /// jumped up, then dropped 500 bps when the calendar turned CLOSED 87 seconds later.
     function test_keeperTighteningNeverLowersHaircut() public {
-        uint64 fri1958 = FRI_1400 + 5 hours + 58 minutes; // EXTENDED sejak 16:00, ramp selesai 15:30
+        uint64 fri1958 = FRI_1400 + 5 hours + 58 minutes; // EXTENDED since 16:00, the ramp finished at 15:30
         vm.warp(fri1958);
         uint256 before = _h();
         assertApproxEqAbs(before, 977, 2);
@@ -157,28 +157,28 @@ contract VigilRiskEngineTest is Test {
         assertGe(_h(), before, "attestation lowered the haircut");
         vm.warp(fri1958 + 87);
         assertGe(_h(), before, "haircut dipped after the calendar caught up");
-        vm.warp(fri1958 + 31 minutes); // attestation kedaluwarsa: kalender CLOSED, haircut tetap
+        vm.warp(fri1958 + 31 minutes); // the attestation expired: calendar CLOSED, haircut unchanged
         assertApproxEqAbs(_h(), 977, 2);
     }
 
-    /// Pengetatan yang MEMPERPANJANG penutupan (nextOpen lebih lambat) menaikkan haircut secara ter-ramp,
-    /// mulai dari level kalender — bukan step dan bukan dari nol.
+    /// A tightening that EXTENDS the closure (later nextOpen) raises the haircut as a ramp starting from the
+    /// calendar level — not a step and not from zero.
     function test_keeperExtensionRampsUpFromCalendarLevel() public {
         uint64 fri1958 = FRI_1400 + 5 hours + 58 minutes;
         vm.warp(fri1958);
         uint256 before = _h();
-        _attestDelayedOpen(fri1958, 1 days); // L 65,5 j → 89,5 j: H 977 → 1.133
+        _attestDelayedOpen(fri1958, 1 days); // L 65.5 h → 89.5 h: H 977 → 1,133
         assertEq(_h(), before, "no step at attestation");
         vm.warp(fri1958 + 25 minutes);
-        _attestDelayedOpen(fri1958 + 25 minutes, 1 days); // keeper memperbarui sebelum kedaluwarsa: ramp berlanjut
+        _attestDelayedOpen(fri1958 + 25 minutes, 1 days); // the keeper renews before expiry: the ramp continues
         vm.warp(fri1958 + 30 minutes);
         uint256 mid = _h();
-        assertApproxEqAbs(mid, 977 + (1_133 - 977) / 2, 4); // separuh increment setelah 30 menit
+        assertApproxEqAbs(mid, 977 + (1_133 - 977) / 2, 4); // half the increment after 30 minutes
         vm.warp(fri1958 + 50 minutes);
         _attestDelayedOpen(fri1958 + 50 minutes, 1 days);
         vm.warp(fri1958 + 60 minutes);
-        assertApproxEqAbs(_h(), 1_133, 3); // increment penuh setelah RAMP_SECONDS sejak awal rantai
-        vm.warp(fri1958 + 81 minutes); // rantai putus: kembali ke kalender (kenaikan harga — diizinkan)
+        assertApproxEqAbs(_h(), 1_133, 3); // the full increment RAMP_SECONDS after the start of the chain
+        vm.warp(fri1958 + 81 minutes); // the chain breaks: back to the calendar (a price increase — allowed)
         assertApproxEqAbs(_h(), 977, 2);
     }
 
@@ -203,18 +203,18 @@ contract VigilRiskEngineTest is Test {
         risk.setSurface(address(nvda), s);
         vm.expectRevert(VigilRiskEngine.TooFrequent.selector);
         risk.setSurface(address(nvda), _surface(0.017e18));
-        vm.warp(FRI_1400 + 1 hours); // = 15:00, ramp pre-close separuh jalan
+        vm.warp(FRI_1400 + 1 hours); // = 15:00, the pre-close ramp is halfway
         vm.expectRevert(VigilRiskEngine.DeltaTooLarge.selector);
         risk.setSurface(address(nvda), _surface(0.02e18)); // 977 → 1.208 = +231 bps
         risk.setSurface(address(nvda), _surface(0.018e18)); // 977 → 1.094 = +117 bps, OK
         vm.stopPrank();
-        vm.warp(SAT_1200); // ramp surface sudah selesai; sekarang H_weekend = 1.094
+        vm.warp(SAT_1200); // the surface ramp has finished; now H_weekend = 1,094
         assertApproxEqAbs(_h(), 1_094, 3);
         vm.warp(SAT_1200 + 2 hours);
         vm.prank(calibrator);
         risk.setSurface(address(nvda), _surface(0.016e18)); // 1.094 → 977
         vm.warp(SAT_1200 + 2 hours + 30 minutes);
-        assertApproxEqAbs(_h(), uint256(1_094 + 977) / 2, 3); // lerp antar-surface
+        assertApproxEqAbs(_h(), uint256(1_094 + 977) / 2, 3); // lerp between surfaces
         vm.warp(SAT_1200 + 3 hours);
         assertApproxEqAbs(_h(), 977, 2);
     }
@@ -225,23 +225,23 @@ contract VigilRiskEngineTest is Test {
         vm.prank(calibrator);
         vm.expectRevert(VigilRiskEngine.LeadTimeTooShort.selector);
         risk.scheduleEvent(address(nvda), e);
-        e = VigilRiskEngine.ScheduledEvent({from: MON_1600, until: TUE_0930, multBps: 42_000}); // malam earnings Senin
+        e = VigilRiskEngine.ScheduledEvent({from: MON_1600, until: TUE_0930, multBps: 42_000}); // Monday earnings night
         vm.prank(calibrator);
         risk.scheduleEvent(address(nvda), e);
         vm.warp(MON_1530);
         feed.set(100e8);
-        // ramp-in event separuh (mult 2,6×) pada penutupan L = 63.000: 50 + 3 × 416 = 1.298
+        // event ramp-in halfway (mult 2.6×) on a closure of L = 63,000: 50 + 3 × 416 = 1,298
         assertApproxEqAbs(_h(), 1_298, 4);
         vm.warp(MON_2100);
         assertApproxEqAbs(_h(), 2_066, 3); // §6.6
         assertTrue(risk.eventActive(address(nvda), MON_2100));
         vm.warp(TUE_0930 + 30 minutes);
         feed.set(100e8);
-        // ramp-out kalender (fOut ½) dan ramp-out event (mult 2,6×) bersamaan: ½ × 1.298
+        // the calendar ramp-out (fOut ½) and the event ramp-out (mult 2.6×) coincide: ½ × 1,298
         assertApproxEqAbs(_h(), 649, 4);
     }
 
-    /// INV-3: dengan feed konstan, haircut tidak pernah melompat lebih dari batas laju ramp.
+    /// INV-3: with a constant feed the haircut never jumps by more than the ramp rate allows.
     function testFuzz_INV3_noStep(uint64 t, uint16 dt) public {
         t = uint64(bound(t, FRI_1400, TUE_1000));
         dt = uint16(bound(dt, 1, 900));
@@ -249,13 +249,13 @@ contract VigilRiskEngineTest is Test {
         risk.scheduleEvent(
             address(nvda), VigilRiskEngine.ScheduledEvent({from: MON_1600, until: TUE_0930, multBps: 42_000})
         );
-        feed.setAt(100e8, t); // feed segar pada t → tanpa pengetatan rule 3
+        feed.setAt(100e8, t); // a fresh feed at t → no rule-3 tightening
         vm.warp(t);
         uint256 h0 = _h();
         vm.warp(t + dt);
         uint256 h1 = _h();
         uint256 d = h0 > h1 ? h0 - h1 : h1 - h0;
-        // dua ramp bisa bertumpuk (kalender × event): batas 2 × H_MAX/RAMP per detik, plus pembulatan
+        // two ramps can stack (calendar × event): bound 2 × H_MAX/RAMP per second, plus rounding
         assertLe(d, 2 + 2 * uint256(2_500) * dt / 3_600);
     }
 
@@ -276,12 +276,12 @@ contract VigilRiskEngineTest is Test {
         assertEq(risk.premiumRefRatePerSecond(address(nvda), Regime.OVERNIGHT, 63_000), 1e9);
         assertEq(risk.premiumRefRatePerSecond(address(nvda), Regime.CLOSED, 149_400), 2e9);
         assertEq(risk.premiumRefRatePerSecond(address(nvda), Regime.CLOSED, (63_000 + 149_400) / 2), 1.5e9);
-        assertEq(risk.premiumRefRatePerSecond(address(nvda), Regime.CORP_ACTION, 1_000_000), 5e9); // clamp atas
+        assertEq(risk.premiumRefRatePerSecond(address(nvda), Regime.CORP_ACTION, 1_000_000), 5e9); // upper clamp
         assertEq(risk.bufferMultiplierWad(address(nvda), 1_023), 1e18);
         assertEq(risk.bufferMultiplierWad(address(nvda), 100), 6.24e18);
         assertEq(risk.bufferMultiplierWad(address(nvda), 3_000), 0.21e18);
-        assertEq(risk.bufferMultiplierWad(address(nvda), 700), 2.325e18); // tengah 600–800
-        // tabel tidak monoton ditolak
+        assertEq(risk.bufferMultiplierWad(address(nvda), 700), 2.325e18); // midway 600–800
+        // a non-monotone table is rejected
         b.multWad[1] = 7e18;
         vm.prank(calibrator);
         vm.expectRevert(VigilRiskEngine.BadTable.selector);

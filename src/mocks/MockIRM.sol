@@ -4,7 +4,7 @@ pragma solidity ^0.8.19;
 import {IIrm} from "morpho-blue/interfaces/IIrm.sol";
 import {MarketParams, Market} from "morpho-blue/interfaces/IMorpho.sol";
 
-/// IRM tetap: rate per detik konstan (default ≈ 5%/tahun). Pengganti AdaptiveCurveIRM untuk test/testnet.
+/// A fixed IRM: constant per-second rate (default ≈ 5 %/year). Stands in for the AdaptiveCurveIRM in tests/testnet.
 contract MockIRM is IIrm {
     uint256 public ratePerSecond;
 

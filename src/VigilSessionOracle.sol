@@ -9,28 +9,28 @@ import {Regime, Session, IVigilCalendar, IVigilSessionOracle, IVigilRiskEngine} 
 import {IAggregatorV3} from "./interfaces/IAggregatorV3.sol";
 import {IStockToken} from "./interfaces/IStockToken.sol";
 
-/// @title VigilSessionOracle — rezim sesi per aset, kesegaran feed, attestation keeper, index premi (PRD §8.1).
-/// @notice Kalender adalah sumber kebenaran; keeper hanya bisa memperketat dan tidak pernah bisa memicu
-///         CORP_ACTION (satu-satunya rezim yang membuat oracle revert). Tanpa keeper, seluruh siklus harian
-///         tetap berjalan dari kalender + kesegaran feed (G6).
+/// @title VigilSessionOracle — per-asset session regime, feed freshness, keeper attestations, premium index (PRD §8.1).
+/// @notice The calendar is the source of truth; a keeper can only tighten and can never trigger
+///         CORP_ACTION (the only regime that makes the oracle revert). Without a keeper the whole daily
+///         cycle still runs from the calendar + feed freshness (G6).
 contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
     using SafeERC20 for IERC20;
 
     struct AssetConfig {
         address feed; // Chainlink AggregatorV3 (STOCK/USD)
-        uint32 marketStaleSeconds; // diam selama ini saat MARKET → OVERNIGHT (rule 3). Per-aset: AAPL bisa diam 4+ jam normal.
+        uint32 marketStaleSeconds; // silent for this long during MARKET → OVERNIGHT (rule 3). Per asset: AAPL can normally go 4+ h without an update.
         uint32 hardStaleMult; // hardStaleWindow = marketStaleSeconds × hardStaleMult
-        uint32 corpActionPre; // detik sebelum effectiveAt
-        uint32 corpActionPost; // detik sesudah effectiveAt
-        uint16 corpActionJumpBps; // lompatan multiplier minimum yang dianggap corporate action (dividen kecil tidak memblokir oracle)
+        uint32 corpActionPre; // seconds before effectiveAt
+        uint32 corpActionPost; // seconds after effectiveAt
+        uint16 corpActionJumpBps; // smallest multiplier jump treated as a corporate action (a small dividend does not block the oracle)
         bool registered;
     }
 
     struct Attestation {
         address asset;
         uint8 regime; // <= CLOSED
-        uint64 closeAt; // <= closeAt kalender (halt ad-hoc)
-        uint64 nextOpen; // >= nextOpen kalender
+        uint64 closeAt; // <= the calendar closeAt (ad-hoc halt)
+        uint64 nextOpen; // >= the calendar nextOpen
         uint64 issuedAt;
         uint64 deadline;
     }
@@ -40,13 +40,13 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
         uint64 closeAt;
         uint64 nextOpen;
         uint64 issuedAt;
-        uint64 since; // awal rantai attestation berturut-turut: ramp pengetatan tidak di-reset oleh pembaruan
+        uint64 since; // start of the chain of consecutive attestations: a renewal does not restart the tightening ramp
     }
 
     struct IndexState {
         uint256 index; // Σ π_ref × dt (WAD per unit notional)
         uint64 lastPoke;
-        uint256 lastMultiplier; // uiMultiplier terakhir yang dilihat setelah jendela post effectiveAt
+        uint256 lastMultiplier; // last uiMultiplier seen after the post-effectiveAt window
     }
 
     bytes32 public constant ATTESTATION_TYPEHASH = keccak256(
@@ -55,11 +55,11 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
     uint64 public constant MAX_ATTESTATION_AGE = 30 minutes;
     uint64 public constant MAX_CLOSED_HORIZON = 5 days;
     uint64 public constant MIN_POKE_INTERVAL = 15 minutes;
-    uint256 internal constant MAX_SEGMENTS = 128; // ≈ 4 minggu segmen kalender tanpa poke
+    uint256 internal constant MAX_SEGMENTS = 128; // ≈ 4 weeks of calendar segments without a poke
 
     IVigilCalendar public immutable calendar;
     IERC20 public immutable bountyToken; // USDG
-    IVigilRiskEngine public risk; // one-shot init (ketergantungan melingkar dengan RiskEngine)
+    IVigilRiskEngine public risk; // one-shot init (circular dependency with the RiskEngine)
     address public guardian;
     address public keeperSigner;
     uint256 public pokeBountyAmount;
@@ -80,7 +80,7 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
     error NotRegistered();
     error BadSignature();
     error Expired();
-    error RegimeTooTight(); // keeper mencoba CORP_ACTION
+    error RegimeTooTight(); // the keeper tried CORP_ACTION
     error NotTightening();
     error StaleAttestation();
     error HorizonTooFar();
@@ -94,7 +94,7 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
         keeperSigner = keeperSigner_;
     }
 
-    // ───────────────────────── kendali ─────────────────────────
+    // ───────────────────────── control ─────────────────────────
 
     modifier onlyGuardian() {
         if (msg.sender != guardian) revert NotGuardian();
@@ -116,7 +116,7 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
         pokeBountyAmount = amount;
     }
 
-    /// Konfigurasi per aset immutable setelah registrasi (prinsip §7.2).
+    /// Per-asset configuration is immutable after registration (principle §7.2).
     function registerAsset(address asset, AssetConfig calldata cfg) external onlyGuardian {
         if (configs[asset].registered) revert AlreadySet();
         configs[asset] = cfg;
@@ -134,7 +134,7 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
         return configs[asset].feed;
     }
 
-    // ───────────────────────── derivasi trustless ─────────────────────────
+    // ───────────────────────── trustless derivation ─────────────────────────
 
     function _feedUpdatedAt(address feed) internal view returns (uint256 updatedAt) {
         (,,, updatedAt,) = IAggregatorV3(feed).latestRoundData();
@@ -146,10 +146,10 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
         return d * 10_000 / a;
     }
 
-    /// @dev Rule 1–4 §8.1. CORP_ACTION hanya dari token: oraclePaused(), atau jendela effectiveAt dengan lompatan
-    ///      multiplier ≥ corpActionJumpBps (pre: pending vs current; post: current vs lastMultiplier — V10b).
-    /// @return derived rezim hasil derivasi; @return s potret kalender; @return since sejak kapan pengetatan
-    ///         derived (di atas kalender) berlaku — dipakai index premi agar akrual presisi.
+    /// @dev Rules 1–4 of §8.1. CORP_ACTION comes only from the token: oraclePaused(), or the effectiveAt window with a
+    ///      multiplier jump ≥ corpActionJumpBps (pre: pending vs current; post: current vs lastMultiplier — V10b).
+    /// @return derived the derived regime; @return s the calendar snapshot; @return since when the derived
+    ///         tightening (above the calendar) started — used by the premium index for exact accrual.
     function _derived(address asset) internal view returns (Regime derived, Session memory s, uint64 since) {
         AssetConfig storage c = configs[asset];
         if (!c.registered) revert NotRegistered();
@@ -169,8 +169,8 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
             if (jump >= c.corpActionJumpBps) return (Regime.CORP_ACTION, s, uint64(eff - c.corpActionPre));
         }
         if (s.cal == Regime.MARKET) {
-            // Diam diukur sejak max(updatedAt, lastOpen): feed yang beku sejak Jumat mendapat masa tenggang
-            // baru pada 09:30 Senin, bukan langsung dianggap rusak saat open.
+            // Silence is measured from max(updatedAt, lastOpen): a feed frozen since Friday gets a fresh grace
+            // period at 09:30 Monday instead of being treated as broken the moment the market opens.
             uint256 ref = _feedUpdatedAt(c.feed);
             if (ref < s.lastOpen) ref = s.lastOpen;
             if (block.timestamp - ref > c.marketStaleSeconds) {
@@ -185,7 +185,7 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
         fresh = a.issuedAt != 0 && block.timestamp - a.issuedAt <= MAX_ATTESTATION_AGE;
     }
 
-    /// @dev effective = max(derived, attested); closeAt = min; nextOpen = max — keeper hanya memperketat (FR-3).
+    /// @dev effective = max(derived, attested); closeAt = min; nextOpen = max — a keeper can only tighten (FR-3).
     function _effective(address asset)
         internal
         view
@@ -194,7 +194,7 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
         (effective, s, closeAt, nextOpen,) = _effectiveSince(asset);
     }
 
-    /// @dev Seperti _effective, plus `tightSince`: awal berlakunya rezim efektif bila lebih ketat dari kalender.
+    /// @dev Like _effective, plus `tightSince`: when the effective regime started, if it is tighter than the calendar.
     function _effectiveSince(address asset)
         internal
         view
@@ -209,8 +209,8 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
         nextOpen = s.nextOpen;
         (bool fresh, AttestState storage a) = _attestFresh(asset);
         if (fresh) {
-            // Rezim attested berlaku sejak closeAt-nya (halt terjadwal); sebelum itu hanya jadwal tutup yang berubah,
-            // sehingga haircut di-ramp menuju halt sejak attestation diterbitkan — tidak pernah step.
+            // An attested regime applies from its closeAt (a scheduled halt); before that only the closing schedule
+            // changes, so the haircut ramps towards the halt from the moment the attestation is issued — never a step.
             if (block.timestamp >= a.closeAt && Regime(a.regime) > effective) {
                 effective = Regime(a.regime);
                 tightSince = a.since;
@@ -220,7 +220,7 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
                 tightSince = a.since;
             }
             if (a.nextOpen > nextOpen) {
-                nextOpen = a.nextOpen; // open ditunda: penutupan lebih panjang → pengetatan, di-ramp sejak awal rantai
+                nextOpen = a.nextOpen; // delayed open: a longer closure → tightening, ramped from the start of the chain
                 tightSince = a.since;
             }
             if (nextOpen > closeAt + MAX_CLOSED_HORIZON) nextOpen = closeAt + MAX_CLOSED_HORIZON;
@@ -246,22 +246,22 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
         return (c, n, effective != Regime.MARKET, s.lastOpen, s.prevClose, ts);
     }
 
-    /// @dev FR-16/17: stale yang DIHARAPKAN (feed beku selama penutupan) ≠ stale TAK TERDUGA.
+    /// @dev FR-16/17: EXPECTED staleness (a feed frozen during a closure) ≠ UNEXPECTED staleness.
     function feedIsUsable(address asset) external view returns (bool) {
         (, Session memory s, uint64 closeAt,) = _effective(asset);
         AssetConfig storage c = configs[asset];
         uint256 updatedAt = _feedUpdatedAt(c.feed);
         uint256 hard = uint256(c.marketStaleSeconds) * c.hardStaleMult;
         if (s.cal == Regime.MARKET) {
-            // pasar seharusnya buka: diam lebih dari hardStaleWindow sejak max(updatedAt, lastOpen) = rusak
+            // the market should be open: silent for more than hardStaleWindow since max(updatedAt, lastOpen) = broken
             uint256 ref = updatedAt < s.lastOpen ? s.lastOpen : updatedAt;
             return block.timestamp - ref <= hard;
         }
-        // pasar tutup (kalender atau halt keeper): harga terakhir tidak boleh lebih tua dari closeAt − hardStaleWindow
+        // market closed (calendar or keeper halt): the last price may not be older than closeAt − hardStaleWindow
         return updatedAt + hard >= closeAt;
     }
 
-    // ───────────────────────── attestation keeper ─────────────────────────
+    // ───────────────────────── keeper attestations ─────────────────────────
 
     function hashAttestation(Attestation calldata a) public view returns (bytes32) {
         return _hashTypedDataV4(
@@ -279,23 +279,24 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
         if (a.issuedAt <= attestations[a.asset].issuedAt) revert StaleAttestation();
         Session memory s = calendar.sessionAt(uint64(block.timestamp));
         if (a.closeAt > s.closeAt || a.nextOpen < s.nextOpen) revert NotTightening();
-        if (a.closeAt < s.closeAt && a.regime < uint8(Regime.EXTENDED)) revert NotTightening(); // halt harus menamai rezim tertutup
+        if (a.closeAt < s.closeAt && a.regime < uint8(Regime.EXTENDED)) revert NotTightening(); // a halt must name a closed regime
         if (a.closeAt + MAX_CLOSED_HORIZON < block.timestamp) revert NotTightening();
         if (a.nextOpen > a.closeAt + MAX_CLOSED_HORIZON) revert HorizonTooFar();
-        _poke(a.asset); // akru rezim lama sampai sekarang sebelum pengetatan berlaku
+        _poke(a.asset); // accrue the old regime up to now before the tightening takes effect
         (bool stillFresh, AttestState storage prev) = _attestFresh(a.asset);
         uint64 since = stillFresh ? prev.since : a.issuedAt;
         attestations[a.asset] = AttestState(a.regime, a.closeAt, a.nextOpen, a.issuedAt, since);
         emit Attested(a.asset, a.regime, a.closeAt, a.nextOpen, keeperSigner);
     }
 
-    // ───────────────────────── index premi (FR-7) ─────────────────────────
+    // ───────────────────────── premium index (FR-7) ─────────────────────────
 
-    /// @dev Pengetatan di atas kalender sebagai fungsi waktu τ — bukan `block.timestamp` — agar integrand akrual
-    ///      tidak berubah setelah pengetatannya lenyap (INV-7: `premiumIndex` monoton, bebas timing poke).
-    ///      Attestation tersimpan on-chain → jendelanya [issuedAt, issuedAt + MAX_ATTESTATION_AGE) eksak, berlaku
-    ///      juga setelah tidak lagi segar. Pengetatan turunan (rule 3 / CORP_ACTION) bergantung state eksternal
-    ///      yang tidak bisa direkonstruksi → hanya dipersistenkan saat `_poke`, tidak pernah masuk view.
+    /// @dev Tightening above the calendar as a function of time τ — not of `block.timestamp` — so the accrual
+    ///      integrand does not change once the tightening is gone (INV-7: `premiumIndex` is monotone and
+    ///      independent of poke timing). An attestation is stored on-chain, so its window
+    ///      [issuedAt, issuedAt + MAX_ATTESTATION_AGE) is exact and still counts after it stops being fresh.
+    ///      A derived tightening (rule 3 / CORP_ACTION) depends on external state that cannot be reconstructed,
+    ///      so it is persisted only by `_poke` and never enters a view.
     struct Tightening {
         Regime attested;
         uint64 attestedFrom;
@@ -320,7 +321,7 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
         }
     }
 
-    /// @dev Integrasi piecewise atas segmen kalender sejak `from`; ≤ MAX_SEGMENTS segmen per panggilan.
+    /// @dev Piecewise integration over the calendar segments since `from`; ≤ MAX_SEGMENTS segments per call.
     function _accrue(address asset, uint64 from, uint64 to, bool withDerived)
         internal
         view
@@ -337,8 +338,8 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
         reached = t;
     }
 
-    /// @dev Akrual satu segmen kalender mulai `t` (dipotong pada `to`): rezim pada τ = max(kalender, pengetatan
-    ///      yang berlaku pada τ), diintegrasikan per sub-interval di antara titik potong pengetatan.
+    /// @dev Accrual of one calendar segment starting at `t` (cut at `to`): the regime at τ = max(calendar, the
+    ///      tightening in force at τ), integrated per sub-interval between the tightening breakpoints.
     function _segment(address asset, uint64 t, uint64 to, Tightening memory tg)
         internal
         view
@@ -361,7 +362,7 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
         }
     }
 
-    /// Waktu terakhir index dipersistenkan; `poke()` memajukannya ≤ MAX_SEGMENTS segmen per panggilan.
+    /// When the index was last persisted; `poke()` advances it by ≤ MAX_SEGMENTS segments per call.
     function lastPokeOf(address asset) external view returns (uint64) {
         return idx[asset].lastPoke;
     }

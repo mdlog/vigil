@@ -5,15 +5,15 @@ import {IOracle} from "morpho-blue/interfaces/IOracle.sol";
 import {Regime, IVigilSessionOracle, IVigilRiskEngine, IVigilOracle} from "./interfaces/IVigil.sol";
 import {IAggregatorV3} from "./interfaces/IAggregatorV3.sol";
 
-/// @title VigilOracle — implementasi Morpho IOracle dengan haircut ter-ramp dan kesadaran sesi (PRD §8.3).
-/// @notice Immutable per pasar. Revert HANYA saat CORP_ACTION dan stale tak terduga (FR-16/17); feed yang beku
-///         selama penutupan terjadwal adalah kondisi normal. Feed sudah total-return (× uiMultiplier) —
-///         JANGAN PERNAH mengalikan multiplier lagi (T12).
+/// @title VigilOracle — a Morpho IOracle with a ramped, session-aware haircut (PRD §8.3).
+/// @notice Immutable per market. Reverts ONLY on CORP_ACTION and on unexpected staleness (FR-16/17); a feed
+///         frozen during a scheduled closure is the normal state. The feed is already total-return
+///         (× uiMultiplier) — NEVER multiply by the multiplier again (T12).
 contract VigilOracle is IOracle, IVigilOracle {
     uint256 public immutable SCALE_FACTOR;
     address public immutable FEED; // STOCK/USD
-    address public immutable QUOTE_FEED; // USDG/USD, address(0) jika diasumsikan $1 (D1: pakai bila ada)
-    address public immutable SEQ_UPTIME_FEED; // address(0) jika tidak tersedia (V8: tidak ada di Robinhood Chain)
+    address public immutable QUOTE_FEED; // USDG/USD, address(0) when $1 is assumed (D1: use it when it exists)
+    address public immutable SEQ_UPTIME_FEED; // address(0) when unavailable (V8: none on Robinhood Chain)
     uint256 public immutable GRACE;
     uint256 public immutable QUOTE_MAX_AGE;
     address public immutable STOCK_TOKEN;
@@ -73,7 +73,7 @@ contract VigilOracle is IOracle, IVigilOracle {
         if (status != 0 || block.timestamp - startedAt <= GRACE) revert VigilSequencerDown();
     }
 
-    /// @dev Morpho IOracle.price(): harga 1 unit collateral dalam loan token, skala 1e36.
+    /// @dev Morpho IOracle.price(): the price of 1 unit of collateral in loan token, scaled by 1e36.
     function price() external view override(IOracle, IVigilOracle) returns (uint256) {
         _checkSequencer();
         uint256 p = _rawPrice();
@@ -85,7 +85,7 @@ contract VigilOracle is IOracle, IVigilOracle {
         return p * (10_000 - h) / 10_000;
     }
 
-    /// Harga feed tanpa haircut dan tanpa pemeriksaan rezim — untuk transparansi dan perhitungan LTV internal.
+    /// The feed price without haircut and without the regime checks — for transparency and internal LTV maths.
     function unhaircutPrice() external view returns (uint256) {
         return _rawPrice();
     }

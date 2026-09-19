@@ -10,7 +10,7 @@ import {MockUSDG} from "../../src/mocks/MockUSDG.sol";
 import {Regime, Session, IVigilRiskEngine} from "../../src/interfaces/IVigil.sol";
 import {CalendarFixture} from "../CalendarFixture.sol";
 
-/// Risk engine tiruan: rate per detik konstan per rezim (WAD/detik atas notional).
+/// A mock risk engine: a constant per-second rate per regime (WAD/second over the notional).
 contract MockRisk is IVigilRiskEngine {
     function haircutBps(address) external pure returns (uint16) {
         return 0;
@@ -94,7 +94,7 @@ contract VigilSessionOracleTest is Test {
         (e,,,) = so.regimeOf(address(nvda));
     }
 
-    // ── rule 4: kalender ──
+    // ── rule 4: calendar ──
     function test_calendarPassthrough() public {
         assertEq(uint8(_regime()), uint8(Regime.MARKET));
         vm.warp(SAT_1200);
@@ -115,23 +115,23 @@ contract VigilSessionOracleTest is Test {
         assertEq(uint8(_regime()), uint8(Regime.CORP_ACTION));
     }
 
-    // ── rule 2: jendela effectiveAt dengan lompatan besar (split), termasuk post-window via lastMultiplier ──
+    // ── rule 2: the effectiveAt window with a large jump (split), including the post-window via lastMultiplier ──
     function test_scheduledSplit_corpActionWindow_prePostAndClears() public {
         uint256 eff = FRI_1500 + 2 hours;
-        nvda.scheduleMultiplier(2e18, eff); // split 2:1 → lompatan 100%
-        assertEq(uint8(_regime()), uint8(Regime.MARKET)); // di luar jendela pre (1 jam)
+        nvda.scheduleMultiplier(2e18, eff); // 2:1 split → a 100 % jump
+        assertEq(uint8(_regime()), uint8(Regime.MARKET)); // outside the pre window (1 h)
         vm.warp(eff - 1 hours);
         assertEq(uint8(_regime()), uint8(Regime.CORP_ACTION));
         vm.warp(eff);
-        nvda.applyMultiplier(); // sekarang newUIMultiplier() == uiMultiplier() (V10b)
+        nvda.applyMultiplier(); // now newUIMultiplier() == uiMultiplier() (V10b)
         assertEq(uint8(_regime()), uint8(Regime.CORP_ACTION)); // post: cur vs lastMultiplier
         vm.warp(eff + 1 hours);
         assertEq(uint8(_regime()), uint8(Regime.CORP_ACTION));
         vm.warp(eff + 1 hours + 1);
-        assertEq(uint8(_regime()), uint8(Regime.EXTENDED)); // 18:00 ET Jumat = post-market
-        so.poke(address(nvda)); // lastMultiplier diperbarui setelah jendela
+        assertEq(uint8(_regime()), uint8(Regime.EXTENDED)); // 18:00 ET Friday = post-market
+        so.poke(address(nvda)); // lastMultiplier is refreshed after the window
         vm.warp(eff + 90 minutes);
-        // jika jendela dibuka lagi tanpa perubahan multiplier, tidak ada CORP_ACTION
+        // if the window opens again without a multiplier change, no CORP_ACTION
         nvda.scheduleMultiplier(2e18, eff + 3 hours);
         vm.warp(eff + 2 hours + 30 minutes);
         assertEq(uint8(_regime()), uint8(Regime.EXTENDED));
@@ -139,19 +139,19 @@ contract VigilSessionOracleTest is Test {
 
     function test_smallDividendMultiplier_doesNotBlockOracle() public {
         uint256 eff = FRI_1500 + 30 minutes;
-        nvda.scheduleMultiplier(1.0008e18, eff); // dividen 8 bps < ambang 100 bps
+        nvda.scheduleMultiplier(1.0008e18, eff); // an 8 bps dividend < the 100 bps threshold
         assertEq(uint8(_regime()), uint8(Regime.MARKET));
         vm.warp(eff);
         nvda.applyMultiplier();
         assertEq(uint8(_regime()), uint8(Regime.MARKET));
     }
 
-    // ── rule 3: feed diam saat MARKET → OVERNIGHT (perketat), dengan tenggang sejak lastOpen ──
+    // ── rule 3: a silent feed during MARKET → OVERNIGHT (tighten), with a grace period since lastOpen ──
     function test_staleDuringMarketTightens_withOpenGrace() public {
-        feed.setAt(100e8, FRI_1500 - 5 hours); // diam 5 jam > 4 jam
+        feed.setAt(100e8, FRI_1500 - 5 hours); // silent 5 h > 4 h
         assertEq(uint8(_regime()), uint8(Regime.OVERNIGHT));
-        assertTrue(so.feedIsUsable(address(nvda))); // < hardStaleWindow 12 jam
-        // Senin pagi setelah beku sejak Jumat 15:55: tenggang baru dari 09:30
+        assertTrue(so.feedIsUsable(address(nvda))); // < the 12 h hardStaleWindow
+        // Monday morning after being frozen since Friday 15:55: a fresh grace period from 09:30
         feed.setAt(100e8, FRI_1555);
         vm.warp(MON_0930 + 1 hours);
         assertEq(uint8(_regime()), uint8(Regime.MARKET));
@@ -159,25 +159,25 @@ contract VigilSessionOracleTest is Test {
         vm.warp(MON_0930 + 4 hours + 1);
         assertEq(uint8(_regime()), uint8(Regime.OVERNIGHT));
         assertTrue(so.feedIsUsable(address(nvda)));
-        // Senin malam: harga terakhir (Jumat 15:55) lebih tua dari closeAt Senin − 12 jam → rusak (skenario 10c)
+        // Monday night: the last price (Friday 15:55) is older than Monday closeAt − 12 h → broken (scenario 10c)
         vm.warp(MON_2100);
         assertFalse(so.feedIsUsable(address(nvda)));
     }
 
-    // ── FR-17: feed beku sepanjang akhir pekan = stale yang diharapkan ──
+    // ── FR-17: a feed frozen all weekend = expected staleness ──
     function test_weekendFreezeIsUsable_deadBeforeCloseIsNot() public {
         feed.setAt(100e8, FRI_1555);
         vm.warp(SUN_2100);
         assertTrue(so.feedIsUsable(address(nvda))); // INV-9
         vm.warp(MON_0930 - 1);
         assertTrue(so.feedIsUsable(address(nvda)));
-        // feed mati Kamis 20:00 (20 jam sebelum close Jumat > hardStaleWindow 12 jam) → tak terduga (skenario 10b)
+        // the feed dies Thursday 20:00 (20 h before the Friday close > the 12 h hardStaleWindow) → unexpected (scenario 10b)
         feed.setAt(100e8, THU_2000);
         vm.warp(SAT_1200);
         assertFalse(so.feedIsUsable(address(nvda)));
     }
 
-    // ── attestation: hanya memperketat, ≤ CLOSED, kedaluwarsa 30 menit ──
+    // ── attestation: tighten only, ≤ CLOSED, expires after 30 minutes ──
     function _sign(VigilSessionOracle.Attestation memory a) internal view returns (bytes memory) {
         bytes32 digest = so.hashAttestation(a);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(keeperPk, digest);
@@ -189,7 +189,7 @@ contract VigilSessionOracleTest is Test {
         VigilSessionOracle.Attestation memory a = VigilSessionOracle.Attestation({
             asset: address(nvda),
             regime: uint8(Regime.CLOSED),
-            closeAt: FRI_1500, // halt ad-hoc sekarang
+            closeAt: FRI_1500, // an ad-hoc halt now
             nextOpen: s.nextOpen,
             issuedAt: FRI_1500,
             deadline: FRI_1500 + 10 minutes
@@ -201,7 +201,7 @@ contract VigilSessionOracleTest is Test {
         assertEq(closeAt, FRI_1500);
         (,, bool inClosure,,,) = so.closureOf(address(nvda));
         assertTrue(inClosure);
-        vm.warp(FRI_1500 + 30 minutes + 1); // kedaluwarsa → kembali ke kalender (skenario 5)
+        vm.warp(FRI_1500 + 30 minutes + 1); // expired → back to the calendar (scenario 5)
         assertEq(uint8(_regime()), uint8(Regime.MARKET));
     }
 
@@ -216,17 +216,17 @@ contract VigilSessionOracleTest is Test {
             deadline: FRI_1500 + 10 minutes
         });
         bytes memory sig = _sign(a);
-        vm.expectRevert(VigilSessionOracle.RegimeTooTight.selector); // FR-33 / INV-11 / skenario 12
+        vm.expectRevert(VigilSessionOracle.RegimeTooTight.selector); // FR-33 / INV-11 / scenario 12
         so.attest(a, sig);
 
         a.regime = uint8(Regime.CLOSED);
-        a.nextOpen = s.nextOpen - 1; // melonggarkan buka
+        a.nextOpen = s.nextOpen - 1; // loosens the open
         sig = _sign(a);
         vm.expectRevert(VigilSessionOracle.NotTightening.selector);
         so.attest(a, sig);
 
         a.nextOpen = s.nextOpen;
-        a.closeAt = s.closeAt + 1; // memundurkan tutup
+        a.closeAt = s.closeAt + 1; // pushes the close back
         sig = _sign(a);
         vm.expectRevert(VigilSessionOracle.NotTightening.selector);
         so.attest(a, sig);
@@ -243,25 +243,25 @@ contract VigilSessionOracleTest is Test {
         so.attest(a, abi.encodePacked(r, s2, v));
     }
 
-    // ── index premi: piecewise, tidak bergantung frekuensi poke (INV-7) ──
+    // ── premium index: piecewise, independent of poke frequency (INV-7) ──
     function test_premiumIndex_piecewiseAndPokeIndependent() public {
         feed.set(100e8);
-        // Jumat 15:00 → Senin 09:30: 1 jam MARKET (0) + 4 jam EXTENDED (1e9) + CLOSED Jum 20:00→Sen 04:00 (4e9) + 5,5 jam EXTENDED (1e9)
+        // Friday 15:00 → Monday 09:30: 1 h MARKET (0) + 4 h EXTENDED (1e9) + CLOSED Fri 20:00 → Mon 04:00 (4e9) + 5.5 h EXTENDED (1e9)
         uint256 expected = 4 hours * 1e9 + (56 hours) * 4e9 + uint256(5 hours + 30 minutes) * 1e9;
         vm.warp(MON_0930);
         assertEq(so.premiumIndex(address(nvda)), expected);
-        // poke di tengah jalan tidak mengubah hasil
+        // a poke halfway through does not change the result
         vm.warp(SAT_1200);
         so.poke(address(nvda));
         vm.warp(SUN_2100);
         so.poke(address(nvda));
         vm.warp(MON_0930);
         assertEq(so.premiumIndex(address(nvda)), expected);
-        // rezim MARKET tidak menambah index (feed hidup pada sesi Senin)
+        // the MARKET regime adds nothing to the index (a live feed during the Monday session)
         vm.warp(MON_1600 - 1);
-        feed.set(100e8); // feed hidup: tidak ada pengetatan rule 3
+        feed.set(100e8); // a live feed: no rule-3 tightening
         assertEq(so.premiumIndex(address(nvda)), expected);
-        // malam biasa: 4 jam EXTENDED + 8 jam OVERNIGHT + 5,5 jam EXTENDED
+        // an ordinary night: 4 h EXTENDED + 8 h OVERNIGHT + 5.5 h EXTENDED
         vm.warp(TUE_0930);
         assertEq(
             so.premiumIndex(address(nvda)),
@@ -269,16 +269,16 @@ contract VigilSessionOracleTest is Test {
         );
     }
 
-    /// Pengetatan rule 3 (feed diam saat MARKET) menambah premi hanya sejak ambang diam terlampaui.
+    /// A rule-3 tightening (a silent feed during MARKET) adds premium only from the moment the silence threshold is crossed.
     function test_premiumIndex_tighteningAppliesFromItsStart() public {
         feed.set(100e8);
         vm.warp(MON_0930);
         so.poke(address(nvda));
         uint256 base = so.premiumIndex(address(nvda));
-        vm.warp(MON_0930 + 5 hours); // diam 5 jam sejak lastOpen → OVERNIGHT sejak 13:30
-        so.poke(address(nvda)); // pengetatan turunan masuk index saat dipersistenkan
+        vm.warp(MON_0930 + 5 hours); // silent 5 h since lastOpen → OVERNIGHT since 13:30
+        so.poke(address(nvda)); // the derived tightening enters the index when persisted
         assertEq(so.premiumIndex(address(nvda)), base + 1 hours * 2e9);
-        // attestation halt CLOSED pada 14:30 (closeAt = sekarang) → CLOSED sejak issuedAt, OVERNIGHT antara 13:30–14:30
+        // a CLOSED halt attestation at 14:30 (closeAt = now) → CLOSED since issuedAt, OVERNIGHT between 13:30–14:30
         Session memory s = cal.sessionAt(MON_0930 + 5 hours);
         VigilSessionOracle.Attestation memory a = VigilSessionOracle.Attestation({
             asset: address(nvda),
@@ -293,9 +293,9 @@ contract VigilSessionOracleTest is Test {
         assertEq(so.premiumIndex(address(nvda)), base + 1 hours * 2e9 + 20 minutes * 4e9);
     }
 
-    /// INV-7: attestation yang kedaluwarsa tanpa poke tidak boleh menghilangkan segmen yang sudah terakru —
-    /// jendela attestation tersimpan on-chain, jadi akrualnya eksak dan tidak bergantung timing poke.
-    /// (Sekuens shrunk dari fuzzer, 19 Sep 2026: attest EXTENDED halt +1 s → +328 s → +2 467 s.)
+    /// INV-7: an attestation that expires without a poke must not remove a segment that has already accrued —
+    /// the attestation window is stored on-chain, so the accrual is exact and independent of poke timing.
+    /// (Shrunk sequence from the fuzzer, 19 Sep 2026: attest an EXTENDED halt +1 s → +328 s → +2,467 s.)
     function test_premiumIndex_monotoneAcrossAttestationExpiry() public {
         Session memory s = cal.sessionAt(FRI_1500);
         VigilSessionOracle.Attestation memory a = VigilSessionOracle.Attestation({
@@ -309,33 +309,35 @@ contract VigilSessionOracleTest is Test {
         so.attest(a, _sign(a));
         vm.warp(FRI_1500 + 328);
         uint256 i1 = so.premiumIndex(address(nvda));
-        assertEq(i1, 328 * 1e9, "EXTENDED sejak issuedAt");
-        vm.warp(FRI_1500 + 2467); // > MAX_ATTESTATION_AGE: attestation tidak lagi segar
+        assertEq(i1, 328 * 1e9, "EXTENDED since issuedAt");
+        vm.warp(FRI_1500 + 2467); // > MAX_ATTESTATION_AGE: the attestation is no longer fresh
         uint256 i2 = so.premiumIndex(address(nvda));
-        assertGe(i2, i1, "INV-7: index view turun setelah attestation kedaluwarsa");
-        assertEq(i2, 30 minutes * 1e9, "jendela attestation penuh, lalu kalender (MARKET = 0)");
-        so.poke(address(nvda)); // persist tanpa mengubah nilai: eksak, bebas timing poke
+        assertGe(i2, i1, "INV-7: the index view dropped after the attestation expired");
+        assertEq(i2, 30 minutes * 1e9, "the full attestation window, then the calendar (MARKET = 0)");
+        so.poke(address(nvda)); // persists without changing the value: exact, independent of poke timing
         assertEq(so.premiumIndex(address(nvda)), 30 minutes * 1e9);
-        assertEq(uint8(_regime()), uint8(Regime.MARKET)); // rezim harga sudah kembali ke kalender
+        assertEq(uint8(_regime()), uint8(Regime.MARKET)); // the price regime is back on the calendar
     }
 
-    /// INV-7 untuk pengetatan turunan (rule 3): riwayat feed tidak bisa direkonstruksi setelah feed ter-update,
-    /// maka view hanya memuat yang bisa dibuktikan (kalender + attestation); `poke` mempersistenkan pengetatan
-    /// yang sedang teramati, dan nilai persist tidak pernah turun saat pengetatan itu lenyap.
+    /// INV-7 for a derived tightening (rule 3): the feed history cannot be reconstructed once the feed updates,
+    /// so the view carries only what can be proven (calendar + attestations); `poke` persists the tightening
+    /// currently observed, and the persisted value never drops when that tightening disappears.
     function test_premiumIndex_derivedTighteningPersistsOnPokeOnly_andNeverReverts() public {
         feed.set(100e8);
         vm.warp(MON_0930);
         so.poke(address(nvda));
         uint256 base = so.premiumIndex(address(nvda));
-        vm.warp(MON_0930 + 5 hours); // diam 5 jam sejak lastOpen → OVERNIGHT sejak 13:30 (rule 3)
-        assertEq(so.premiumIndex(address(nvda)), base, "view: pengetatan turunan belum dipersistenkan");
+        vm.warp(MON_0930 + 5 hours); // silent 5 h since lastOpen → OVERNIGHT since 13:30 (rule 3)
+        assertEq(so.premiumIndex(address(nvda)), base, "view: the derived tightening is not persisted yet");
         so.poke(address(nvda));
         uint256 persisted = so.premiumIndex(address(nvda));
-        assertEq(persisted, base + 1 hours * 2e9, "poke: OVERNIGHT diakru sejak ambang diam, bukan sejak lastPoke");
-        feed.set(100e8); // feed hidup lagi: pengetatan lenyap, yang sudah persist tidak boleh turun
-        assertEq(so.premiumIndex(address(nvda)), persisted, "INV-7: index turun setelah feed ter-update");
+        assertEq(
+            persisted, base + 1 hours * 2e9, "poke: OVERNIGHT accrues from the silence threshold, not from lastPoke"
+        );
+        feed.set(100e8); // the feed is live again: the tightening disappears, what was persisted must not drop
+        assertEq(so.premiumIndex(address(nvda)), persisted, "INV-7: the index dropped after the feed updated");
         vm.warp(MON_0930 + 5 hours + 30 minutes);
-        assertEq(so.premiumIndex(address(nvda)), persisted, "MARKET dengan feed hidup tidak menambah index");
+        assertEq(so.premiumIndex(address(nvda)), persisted, "MARKET with a live feed adds nothing to the index");
     }
 
     function test_pokeBounty_paidFromPool() public {
@@ -347,7 +349,7 @@ contract VigilSessionOracleTest is Test {
         vm.warp(FRI_1500 + 20 minutes);
         so.poke(address(nvda));
         assertEq(usdg.balanceOf(address(this)), 1e6);
-        so.poke(address(nvda)); // < 15 menit sejak poke terakhir → tanpa bounty
+        so.poke(address(nvda)); // < 15 minutes since the last poke → no bounty
         assertEq(usdg.balanceOf(address(this)), 1e6);
     }
 }

@@ -3,7 +3,7 @@ pragma solidity ^0.8.19;
 
 import {Id} from "morpho-blue/interfaces/IMorpho.sol";
 
-/// Urutan penting: makin besar makin ketat. Keeper hanya boleh menaikkan sampai CLOSED (FR-33).
+/// The order matters: higher is tighter. A keeper may only raise the regime up to CLOSED (FR-33).
 enum Regime {
     MARKET,
     EXTENDED,
@@ -12,14 +12,14 @@ enum Regime {
     CORP_ACTION
 }
 
-/// Potret kalender pada satu timestamp (PRD §8.0).
+/// A calendar snapshot at one timestamp (PRD §8.0).
 struct Session {
     Regime cal;
-    uint64 closeAt; // akhir sesi MARKET terakhir; jika sedang MARKET: akhir sesi ini (penutupan berikutnya)
-    uint64 nextOpen; // awal sesi MARKET berikutnya
-    uint64 lastOpen; // awal sesi MARKET saat ini (MARKET) / sesi yang berakhir di closeAt (lainnya)
-    uint64 prevClose; // MARKET: akhir sesi sebelumnya (untuk ramp-out); lainnya: = closeAt
-    uint64 segmentEnd; // batas berikutnya di mana rezim kalender berubah
+    uint64 closeAt; // end of the last MARKET session; during MARKET: the end of this session (the next closure)
+    uint64 nextOpen; // start of the next MARKET session
+    uint64 lastOpen; // start of the current MARKET session (MARKET) / of the session that ended at closeAt (otherwise)
+    uint64 prevClose; // MARKET: end of the previous session (for the ramp-out); otherwise = closeAt
+    uint64 segmentEnd; // the next boundary at which the calendar regime changes
 }
 
 interface IVigilCalendar {
@@ -33,7 +33,7 @@ interface IVigilSessionOracle {
         external
         view
         returns (Regime effective, Regime cal, uint64 closeAt, uint64 nextOpen);
-    /// @dev tightSince = awal berlakunya pengetatan di atas kalender (attestation/derived); 0 jika murni kalender
+    /// @dev tightSince = when the tightening above the calendar (attested/derived) took effect; 0 when purely calendar
     function closureOf(address asset)
         external
         view

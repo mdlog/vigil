@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-/// Libur & early-close NYSE 2024–2028 sebagai indeks hari ET — diverifikasi terhadap nyse.com (V15, 19 Sep 2026);
-/// daftar tanggal resminya dipin di test/unit/VigilCalendar.t.sol.
+/// NYSE holidays & early closes 2024–2028 as ET day indices — verified against nyse.com (V15, 19 Sep 2026);
+/// the official date list is pinned in test/unit/VigilCalendar.t.sol.
 library CalendarFixture {
     function closedDays() internal pure returns (uint32[] memory d) {
         uint32[50] memory c = [

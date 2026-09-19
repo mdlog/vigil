@@ -12,7 +12,7 @@ import {MockStockToken} from "../../src/mocks/MockStockToken.sol";
 import {Regime} from "../../src/interfaces/IVigil.sol";
 import {Id} from "morpho-blue/interfaces/IMorpho.sol";
 
-/// Aksi acak terhadap sistem; menyimpan ghost state untuk INV-3 dan INV-7.
+/// Random actions against the system; keeps ghost state for INV-3 and INV-7.
 contract Handler is Test {
     VigilSessionOracle so;
     VigilRiskEngine risk;
@@ -60,7 +60,7 @@ contract Handler is Test {
         }
     }
 
-    /// INV-3: dengan feed konstan, harga tidak melompat lebih dari batas laju ramp.
+    /// INV-3: with a constant feed the price never jumps by more than the ramp rate allows.
     function warp(uint32 dt) external {
         dt = uint32(bound(dt, 1, 6 hours));
         if (block.timestamp + dt > END) return;
@@ -68,10 +68,10 @@ contract Handler is Test {
         vm.warp(block.timestamp + dt);
         (bool ok1, uint256 p1) = _price();
         if (ok0 && ok1 && p0 > p1) {
-            // INV-3 / FR-11: PENURUNAN harga tidak pernah melompat (kenaikan — mis. pelepasan haircut saat
-            // attestation kedaluwarsa — tidak memengaruhi solvabilitas dan boleh seketika)
+            // INV-3 / FR-11: a price DECREASE never jumps (an increase — e.g. the haircut released when an
+            // attestation expires — does not affect solvency and may be immediate)
             uint256 d = p0 - p1;
-            uint256 maxBps = 2 + 2 * uint256(2_500) * dt / 3_600; // dua ramp bertumpuk + pembulatan
+            uint256 maxBps = 2 + 2 * uint256(2_500) * dt / 3_600; // two stacked ramps + rounding
             if (d * 10_000 > p0 * maxBps) stepViolations++;
         }
         _track();
@@ -84,7 +84,7 @@ contract Handler is Test {
     }
 
     function attest(uint8 regime, uint32 ttl, uint32 haltIn) external {
-        regime = uint8(bound(regime, 0, 4)); // 4 = CORP_ACTION harus ditolak
+        regime = uint8(bound(regime, 0, 4)); // 4 = CORP_ACTION must be rejected
         ttl = uint32(bound(ttl, 1 minutes, 40 minutes));
         var_attest(regime, ttl, uint32(bound(haltIn, 0, 4 hours)));
         _track();
@@ -134,7 +134,7 @@ contract Handler is Test {
 
     function _track() internal {
         uint256 i = so.premiumIndex(address(nvda));
-        if (i < lastIndex) stepViolations += 1_000_000; // INV-7 dilanggar
+        if (i < lastIndex) stepViolations += 1_000_000; // INV-7 violated
         lastIndex = i;
         actions++;
     }

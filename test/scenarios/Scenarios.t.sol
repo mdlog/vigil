@@ -8,9 +8,9 @@ import {VigilOracle} from "../../src/VigilOracle.sol";
 import {Regime} from "../../src/interfaces/IVigil.sol";
 import {Position, Market, MarketParams} from "morpho-blue/interfaces/IMorpho.sol";
 
-/// Skenario PRD §12 dijalankan pada Morpho Blue asli dengan dua pasar identik (A kontrol, B Vigil).
+/// The PRD §12 scenarios run on the real Morpho Blue with two identical markets (A control, B Vigil).
 contract ScenariosTest is Base {
-    address carol = address(0xCA201); // peminjam di pasar kontrol
+    address carol = address(0xCA201); // borrower in the control market
 
     function setUp() public override {
         super.setUp();
@@ -22,14 +22,14 @@ contract ScenariosTest is Base {
         vm.stopPrank();
     }
 
-    /// Bot unwind: unwind member yang memenuhi syarat; likuidasi keras non-member yang tidak sehat pada harga pasar.
+    /// Unwind bot: unwinds eligible members; hard-liquidates unhealthy non-members at the market price.
     function _botPreClose() internal {
         (bool ok,) = preLiq.isUnwindable(idB, alice);
         if (ok) {
             vm.prank(liquidator);
             preLiq.preLiquidate(idB, alice, type(uint256).max, "");
         }
-        // bob (non-member) tidak sehat pada harga ter-haircut → likuidasi keras parsial (seize 35% jaminan)
+        // bob (non-member) is unhealthy at the haircut price → partial hard liquidation (seize 35 % of the collateral)
         Position memory pb = _pos(mB, bob);
         if (pb.collateral > 0) {
             vm.prank(liquidator);
@@ -48,32 +48,32 @@ contract ScenariosTest is Base {
         uint256 supplyA0 = _mkt(mA).totalSupplyAssets;
         uint256 supplyB0 = _mkt(mB).totalSupplyAssets;
 
-        // Jumat 15:00–15:30: jendela pre-close — soft unwind member, likuidasi keras non-member
+        // Friday 15:00–15:30: pre-close window — soft unwind of the member, hard liquidation of the non-member
         vm.warp(fri1400 + 1 hours);
         _botPreClose();
         vm.warp(fri1400 + 90 minutes);
         _botPreClose();
         uint256 pxScaled = uint256(closePx) * 1e16;
-        assertLe(_ltv(mB, alice, pxScaled), 0.76e18 + 1e13); // member di-unwind ke target sebelum close (+bunga 30 menit)
-        assertApproxEqRel(_ltv(mA, carol, pxScaled), 0.86e18, 0.0001e18); // kontrol tidak tersentuh
+        assertLe(_ltv(mB, alice, pxScaled), 0.76e18 + 1e13); // the member is unwound to the target before the close (+30 min of interest)
+        assertApproxEqRel(_ltv(mA, carol, pxScaled), 0.86e18, 0.0001e18); // the control is untouched
 
-        // akhir pekan: feed beku sejak Jumat 15:55, oracle Vigil tidak revert, haircut cap 500
+        // weekend: feed frozen since Friday 15:55, the Vigil oracle does not revert, haircut capped at 500
         feed.setAt(closePx, fri1555);
         vm.warp(fri1555 + 30 hours);
         assertEq(vOracle.currentHaircutBps(), CAP_BPS);
         vOracle.price();
         premium.accrue(idB, alice);
-        assertGt(premium.escrowOf(idB, alice).paid, 0); // premi akhir pekan mengalir ke backstop
+        assertGt(premium.escrowOf(idB, alice).paid, 0); // the weekend premium flows to the backstop
 
-        // Senin 09:30 + 5 menit: gap tercetak
+        // Monday 09:30 + 5 min: the gap prints
         vm.warp(mon0930 + 5 minutes);
         feed.set(openPx);
-        // pasar kontrol: likuidasi penuh → bad debt tersosialisasi
+        // control market: full liquidation → socialized bad debt
         uint256 collCarol = _pos(mA, carol).collateral;
         vm.prank(liquidator);
         morpho.liquidate(mA, carol, collCarol, 0, "");
         assertLt(_mkt(mA).totalSupplyAssets, supplyA0);
-        // pasar Vigil: alice (76%) tidak sehat tetapi TIDAK underwater → likuidasi tanpa shortfall, tanpa cover
+        // Vigil market: alice (76 %) is unhealthy but NOT underwater → liquidation without shortfall, no cover
         (uint256 shortfall,,,) = lossReporter.previewCover(idB, alice);
         assertEq(shortfall, 0);
         vm.prank(liquidator);
@@ -83,20 +83,20 @@ contract ScenariosTest is Base {
         assertEq(_pos(mB, alice).borrowShares, 0);
     }
 
-    /// Skenario 2a — replay 5 Agustus 2024 (close 107,27 → open 92,06, −14,18%).
+    /// Scenario 2a — replay of 5 August 2024 (close 107.27 → open 92.06, −14.18 %).
     function test_scenario2_replayAug5_2024() public {
         _replay(10726999664, 9205999756, FRI_1400, FRI_1555, MON_0930);
     }
 
-    /// Skenario 2b — replay 27 Januari 2025 (close 142,62 → open 124,80, −12,49%).
+    /// Scenario 2b — replay of 27 January 2025 (close 142.62 → open 124.80, −12.49 %).
     function test_scenario2_replayJan27_2025() public {
-        // 2025-01-24 Jumat 14:00 ET (EST) = 1737745200; 15:55 = 1737752100; 2025-01-27 09:30 = 1737988200
+        // Friday 2025-01-24 14:00 ET (EST) = 1737745200; 15:55 = 1737752100; 2025-01-27 09:30 = 1737988200
         _replay(14261999512, 12480000305, 1737745200, 1737752100, 1737988200);
     }
 
-    /// Skenario 1 — akhir pekan biasa, gap −2%: tidak ada unwind, tidak ada likuidasi, premi tetap terakumulasi.
+    /// Scenario 1 — an ordinary weekend, −2 % gap: no unwind, no liquidation, the premium still accrues.
     function test_scenario1_normalWeekend() public {
-        _open(mB, alice, 10e18, 0.75e18); // di bawah ambang soft akhir pekan (0,86 × 0,9023 = 77,6%)
+        _open(mB, alice, 10e18, 0.75e18); // below the weekend soft threshold (0.86 × 0.9023 = 77.6 %)
         _join(alice, 20e6);
         vm.warp(FRI_1500);
         (bool ok,) = preLiq.isUnwindable(idB, alice);
@@ -105,14 +105,14 @@ contract ScenariosTest is Base {
         vm.warp(MON_0930 + 5 minutes);
         feed.set(P0 * 98 / 100);
         vm.prank(liquidator);
-        vm.expectRevert(); // sehat: 0,75/0,98 = 76,5% < 86%
+        vm.expectRevert(); // healthy: 0.75/0.98 = 76.5 % < 86 %
         morpho.liquidate(mB, alice, 1e18, 0, "");
         premium.accrue(idB, alice);
         assertGt(premium.escrowOf(idB, alice).paid, 0);
     }
 
-    /// Skenario 3 — malam earnings: event 4,2× dijadwalkan ≥ 24 jam sebelumnya; member max-LTV di-unwind
-    /// pre-close oleh ambang event; gap −12% saat open Selasa → kontrol bad debt, Vigil tidak.
+    /// Scenario 3 — earnings night: a 4.2× event scheduled ≥ 24 h ahead; the max-LTV member is unwound
+    /// pre-close by the event threshold; a −12 % gap at the Tuesday open → the control has bad debt, Vigil does not.
     function test_scenario3_earningsNight() public {
         vm.prank(calibrator);
         risk.scheduleEvent(
@@ -125,7 +125,7 @@ contract ScenariosTest is Base {
         _open(mA, carol, 10e18, 0.86e18);
         vm.warp(MON_1600 - 30 minutes);
         feed.set(P0);
-        assertGt(preLiq.softHaircutBps(idB), 1_200); // H_soft naik ter-ramp (event × kalender) ≈ 1.298
+        assertGt(preLiq.softHaircutBps(idB), 1_200); // H_soft ramps up (event × calendar) ≈ 1,298
         (bool ok,) = preLiq.isUnwindable(idB, alice);
         assertTrue(ok);
         vm.prank(liquidator);
@@ -138,15 +138,15 @@ contract ScenariosTest is Base {
         uint256 supplyB0 = _mkt(mB).totalSupplyAssets;
         uint256 collCarol = _pos(mA, carol).collateral;
         vm.prank(liquidator);
-        morpho.liquidate(mA, carol, collCarol, 0, ""); // 0,86 → underwater (b 10,23% < 12%)
-        assertLt(_mkt(mA).totalSupplyAssets, supplyA0); // kontrol: bad debt tersosialisasi
+        morpho.liquidate(mA, carol, collCarol, 0, ""); // 0.86 → underwater (b 10.23 % < 12 %)
+        assertLt(_mkt(mA).totalSupplyAssets, supplyA0); // control: socialized bad debt
         vm.prank(liquidator);
-        lossReporter.liquidateWithCover(idB, alice, ""); // 0,76/0,88 = 86,4%: likuidasi tanpa shortfall
+        lossReporter.liquidateWithCover(idB, alice, ""); // 0.76/0.88 = 86.4 %: liquidation without shortfall
         assertGe(_mkt(mB).totalSupplyAssets, supplyB0);
         assertEq(backstop.totalCovered(), 0);
     }
 
-    /// Skenario 9 — akhir pekan panjang (Labor Day 2026): feed beku 4 hari, oracle tidak revert, L = 322.200.
+    /// Scenario 9 — a long weekend (Labor Day 2026): feed frozen for 4 days, the oracle does not revert, L = 322,200.
     function test_scenario9_longWeekendNoRevert() public {
         uint64 labFri1400 = 1788544800; // 2026-09-04 14:00 ET
         uint64 labFri1555 = 1788551700;
@@ -155,18 +155,18 @@ contract ScenariosTest is Base {
         feed.set(P0);
         _open(mB, alice, 10e18, 0.5e18);
         feed.setAt(P0, labFri1555);
-        vm.warp(labFri1555 + 2 days); // Minggu
+        vm.warp(labFri1555 + 2 days); // Sunday
         vOracle.price();
-        vm.warp(labFri1555 + 3 days); // Senin libur
+        vm.warp(labFri1555 + 3 days); // Monday holiday
         vOracle.price();
         (,, uint64 closeAt, uint64 nextOpen) = so.regimeOf(address(nvda));
         assertEq(nextOpen - closeAt, 322_200);
         assertGe(risk.haircutBps(address(nvda)), 1_130);
         vm.warp(labTue0930 + 10 minutes);
-        vOracle.price(); // tenggang sejak open Selasa
+        vOracle.price(); // grace period since the Tuesday open
     }
 
-    /// Skenario 5 — keeper mati: halt palsu kedaluwarsa, sistem kembali ke kalender; premi malam biasa tetap jalan.
+    /// Scenario 5 — dead keeper: a bogus halt expires, the system falls back to the calendar; the ordinary night premium keeps running.
     function test_scenario5_keeperDeath() public {
         VigilSessionOracle.Attestation memory a = VigilSessionOracle.Attestation({
             asset: address(nvda),
@@ -181,7 +181,7 @@ contract ScenariosTest is Base {
         assertEq(vOracle.regime(), uint8(Regime.CLOSED));
         vm.warp(FRI_1400 + 31 minutes);
         feed.set(P0);
-        assertEq(vOracle.regime(), uint8(Regime.MARKET)); // tidak ada keeper → kalender
+        assertEq(vOracle.regime(), uint8(Regime.MARKET)); // no keeper → calendar
         _open(mB, alice, 10e18, 0.5e18);
         _join(alice, 20e6);
         vm.warp(MON_0930);
@@ -193,6 +193,6 @@ contract ScenariosTest is Base {
         vm.warp(TUE_0930 + 1 days);
         feed.set(P0);
         premium.accrue(idB, alice);
-        assertGt(premium.escrowOf(idB, alice).paid, paidAfterWeekend); // malam Selasa OVERNIGHT dari kalender, tanpa keeper
+        assertGt(premium.escrowOf(idB, alice).paid, paidAfterWeekend); // Tuesday night OVERNIGHT from the calendar, no keeper
     }
 }

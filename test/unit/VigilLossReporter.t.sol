@@ -15,8 +15,8 @@ contract VigilLossReporterTest is Base {
         vm.stopPrank();
     }
 
-    /// Posisi max-LTV dibuka Jumat siang (sesi reguler, haircut 0), lalu gap −12% (di atas batas bad debt
-    /// 10,23%) tercetak 30 menit setelah open Senin — replay bentuk 27 Jan 2025.
+    /// A max-LTV position opened Friday afternoon (regular session, haircut 0), then a −12 % gap (beyond the
+    /// 10.23 % bad-debt threshold) prints 30 minutes after the Monday open — the shape of 27 Jan 2025.
     function _underwater(address who, bool join) internal {
         _open(mB, who, 10e18, 0.86e18);
         if (join) _join(who, 5e6);
@@ -29,7 +29,7 @@ contract VigilLossReporterTest is Base {
         (uint256 shortfall, uint256 coverable, bool member, bool covered) = lossReporter.previewCover(idB, alice);
         assertGt(shortfall, 0);
         assertTrue(member);
-        assertTrue(covered); // dalam coverWindow 1 jam setelah open
+        assertTrue(covered); // inside the 1 h coverWindow after the open
         assertEq(coverable, shortfall + lossReporter.DUST());
         uint256 supplyBefore = _mkt(mB).totalSupplyAssets;
         uint256 bsBefore = usdg.balanceOf(address(backstop));
@@ -38,13 +38,13 @@ contract VigilLossReporterTest is Base {
         (uint256 seized, uint256 repaid, uint256 got) = lossReporter.liquidateWithCover(idB, alice, "");
         Position memory p = _pos(mB, alice);
         assertEq(p.borrowShares, 0);
-        assertGt(p.collateral, 0); // dust jaminan tersisa → Morpho tidak pernah masuk jalur bad debt
+        assertGt(p.collateral, 0); // collateral dust remains → Morpho never takes the bad-debt path
         assertGe(_mkt(mB).totalSupplyAssets, supplyBefore); // INV-13
         assertEq(got, shortfall + lossReporter.DUST());
         uint256 bounty = got * 10 / 10_000;
         assertApproxEqAbs(bsBefore - usdg.balanceOf(address(backstop)), got + bounty, 2);
         assertEq(nvda.balanceOf(liquidator), seized);
-        assertApproxEqAbs(liqUsdgBefore - usdg.balanceOf(liquidator), repaid - bounty, 2); // bayar repaid, terima bounty
+        assertApproxEqAbs(liqUsdgBefore - usdg.balanceOf(liquidator), repaid - bounty, 2); // pays repaid, receives the bounty
         assertEq(backstop.totalCovered(), got + bounty);
     }
 
@@ -55,7 +55,7 @@ contract VigilLossReporterTest is Base {
         vm.prank(liquidator);
         morpho.liquidate(mB, alice, coll, 0, "");
         assertEq(_pos(mB, alice).borrowShares, 0);
-        assertLt(_mkt(mB).totalSupplyAssets, supplyBefore); // pemasok rugi (skenario 11, sisi kontrol)
+        assertLt(_mkt(mB).totalSupplyAssets, supplyBefore); // the suppliers lose (scenario 11, control side)
         assertEq(backstop.totalCovered(), 0);
     }
 
@@ -68,11 +68,11 @@ contract VigilLossReporterTest is Base {
 
     function test_outsideCoverWindowNotCovered() public {
         _underwater(alice, true);
-        vm.warp(MON_0930 + 2 hours); // MARKET, > 1 jam setelah open
+        vm.warp(MON_0930 + 2 hours); // MARKET, > 1 h after the open
         vm.prank(liquidator);
         vm.expectRevert(VigilLossReporter.NotCovered.selector);
         lossReporter.liquidateWithCover(idB, alice, "");
-        vm.warp(MON_2100); // rezim ≠ MARKET → tercakup lagi
+        vm.warp(MON_2100); // regime ≠ MARKET → covered again
         (,,, bool covered) = lossReporter.previewCover(idB, alice);
         assertTrue(covered);
     }
@@ -87,10 +87,10 @@ contract VigilLossReporterTest is Base {
         (,, uint256 got) = lossReporter.liquidateWithCover(idB, alice, "");
         assertLt(got, shortfall);
         assertEq(_pos(mB, alice).borrowShares, 0);
-        assertEq(_pos(mB, alice).collateral, 0); // jalur seizedAssets = coll
+        assertEq(_pos(mB, alice).collateral, 0); // the seizedAssets = coll path
         uint256 loss = supplyBefore - _mkt(mB).totalSupplyAssets;
         assertGt(loss, 0);
-        assertLt(loss, shortfall); // separuh terserap backstop
+        assertLt(loss, shortfall); // half absorbed by the backstop
     }
 
     function test_healthyPositionCannotBeLiquidated() public {
@@ -99,7 +99,7 @@ contract VigilLossReporterTest is Base {
         _open(mB, alice, 10e18, 0.5e18);
         _join(alice, 5e6);
         vm.prank(liquidator);
-        vm.expectRevert(); // Morpho: posisi sehat
+        vm.expectRevert(); // Morpho: healthy position
         lossReporter.liquidateWithCover(idB, alice, "");
     }
 }

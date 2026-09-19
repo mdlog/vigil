@@ -20,20 +20,20 @@ import {MockFeed} from "../src/mocks/MockFeed.sol";
 import {MockUSDG} from "../src/mocks/MockUSDG.sol";
 import {MockIRM} from "../src/mocks/MockIRM.sol";
 
-/// Deploy Vigil untuk satu pasar NVDA/USDG. Setiap kontrak di-deploy langsung dari EOA (< 24 KB masing-masing).
+/// Deploys Vigil for one NVDA/USDG market. Every contract is deployed directly from the EOA (< 24 KB each).
 ///
-/// Env (opsional; kosong → mock / default):
-///   MORPHO        Morpho Blue (mainnet Robinhood 0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010); kosong → deploy sendiri (Rencana B1)
-///   IRM           mainnet AdaptiveCurveIRM 0x2BD3d5965B26B51814AC95127B2b80dD6CcC0fa1; kosong → MockIRM
-///   USDG          mainnet 0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168; kosong → MockUSDG
-///   STOCK_TOKEN   mainnet NVDA 0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC; kosong → MockStockToken
-///   FEED          mainnet Chainlink NVDA/USD 0x379EC4f7C378F34a1B47E4F3cbeBCbAC3E8E9F15; kosong → MockFeed
-///   USDG_FEED     mainnet USDG/USD 0x61B7e5650328764B076A108EFF5fa7282a1B9aD2; kosong → asumsi $1
+/// Env (optional; empty → mock / default):
+///   MORPHO        Morpho Blue (Robinhood mainnet 0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010); empty → deploy our own (Plan B1)
+///   IRM           mainnet AdaptiveCurveIRM 0x2BD3d5965B26B51814AC95127B2b80dD6CcC0fa1; empty → MockIRM
+///   USDG          mainnet 0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168; empty → MockUSDG
+///   STOCK_TOKEN   mainnet NVDA 0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC; empty → MockStockToken
+///   FEED          mainnet Chainlink NVDA/USD 0x379EC4f7C378F34a1B47E4F3cbeBCbAC3E8E9F15; empty → MockFeed
+///   USDG_FEED     mainnet USDG/USD 0x61B7e5650328764B076A108EFF5fa7282a1B9aD2; empty → $1 assumed
 ///   GUARDIAN / CALIBRATOR / KEEPER_SIGNER  default = deployer
 ///   LLTV (0.86e18), TARGET_LTV (0.76e18), CAP_BPS (500), COVERAGE_CAP (100000e6)
 ///
-/// Testnet 46630 tidak memiliki Morpho, Chainlink, maupun stock token (verifikasi 19 Sep 2026) → semua mock.
-///   PRIVATE_KEY   kunci deployer, diisi di .env (gitignored; lihat .env.example); alternatif: --private-key
+/// Testnet 46630 has no Morpho, Chainlink or stock tokens (verified 19 Sep 2026) → everything is mocked.
+///   PRIVATE_KEY   the deployer key, set in .env (gitignored; see .env.example); alternative: --private-key
 ///   forge script script/Deploy.s.sol --rpc-url robinhood_testnet --broadcast
 contract Deploy is Script {
     using MarketParamsLib for MarketParams;
@@ -67,7 +67,7 @@ contract Deploy is Script {
     MarketParams market;
 
     function run() external {
-        // PRIVATE_KEY dari .env (dimuat forge otomatis); kosong → sender dari --private-key/--account/--sender.
+        // PRIVATE_KEY from .env (forge loads it automatically); empty → the sender comes from --private-key/--account/--sender.
         uint256 pk = vm.envOr("PRIVATE_KEY", uint256(0));
         if (pk != 0) {
             c.deployer = vm.addr(pk);

@@ -13,7 +13,7 @@ import {VigilPreLiquidation} from "../src/VigilPreLiquidation.sol";
 import {VigilLossReporter} from "../src/VigilLossReporter.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-/// Parameter kalibrasi & konfigurasi bersama untuk Deploy dan Demo (angka dari calibrator/report.md, PRD §6.6).
+/// Calibration parameters & shared configuration for Deploy and Demo (numbers from calibrator/report.md, PRD §6.6).
 library VigilParams {
     function surface() internal pure returns (VigilRiskEngine.Surface memory) {
         return
@@ -38,8 +38,8 @@ library VigilParams {
     }
 
     function assetConfig(address feed) internal pure returns (VigilSessionOracle.AssetConfig memory) {
-        // Chainlink Robinhood feeds: heartbeat 24 jam, deviasi 0,5%, tanpa heartbeat di luar jam (V7/V7b).
-        // AAPL terlihat diam 4,7 jam di dalam sesi → marketStaleSeconds 6 jam, hardStaleMult 3 (18 jam).
+        // Chainlink feeds on Robinhood Chain: 24 h heartbeat, 0.5 % deviation, no heartbeat outside market hours (V7/V7b).
+        // AAPL was seen silent for 4.7 h inside a session → marketStaleSeconds 6 h, hardStaleMult 3 (18 h).
         return VigilSessionOracle.AssetConfig({
             feed: feed,
             marketStaleSeconds: 6 hours,
@@ -51,8 +51,8 @@ library VigilParams {
         });
     }
 
-    /// Libur & early-close NYSE 2024–2028 (indeks hari ET). V15 selesai 19 Sep 2026: cocok dengan nyse.com
-    /// (2026–2028 halaman saat ini; 2024–2025 arsip Wayback Mei 2024 & Mar 2025; 9 Jan 2025 rilis pers ICE/NYSE).
+    /// NYSE holidays & early closes 2024–2028 (ET day indices). V15 done 19 Sep 2026: matches nyse.com
+    /// (2026–2028 on the current page; 2024–2025 via Wayback snapshots of May 2024 & Mar 2025; 9 Jan 2025 via the ICE/NYSE release).
     function closedDays() internal pure returns (uint32[] memory d) {
         uint32[50] memory c = [
             uint32(19723),
@@ -121,10 +121,10 @@ library VigilParams {
     }
 }
 
-/// Deploy + wiring seluruh Vigil untuk satu aset/pasar, dipakai Demo.s.sol (simulasi lokal). Kontrak terpisah,
-/// bukan library: forge melarang `address(this)` di script contract, sedangkan kontrak ini menjadi guardian &
-/// calibrator sementara sebelum peran diserahkan ke alamat final. Tidak pernah di-broadcast; creation code
-/// 8 kontrak membuatnya > 24 KB, maka ditandai `IS_SCRIPT` agar `forge build --sizes` mengecualikannya.
+/// Deploys + wires all of Vigil for one asset/market, used by Demo.s.sol (local simulation). A separate contract,
+/// not a library: forge forbids `address(this)` in a script contract, while this contract acts as the interim
+/// guardian & calibrator before the roles are handed to their final addresses. Never broadcast; the creation
+/// code of 8 contracts makes it > 24 KB, so it is marked `IS_SCRIPT` to keep `forge build --sizes` from flagging it.
 contract VigilDeployer {
     using MarketParamsLib for MarketParams;
 
@@ -137,7 +137,7 @@ contract VigilDeployer {
         address usdg;
         address stockToken;
         address feed;
-        address usdgFeed; // address(0) → asumsi $1
+        address usdgFeed; // address(0) → $1 assumed
         address guardian;
         address calibrator;
         address keeperSigner;
@@ -181,7 +181,7 @@ contract VigilDeployer {
         d.backstop.setLossReporter(address(d.lossReporter));
         d.backstop.setCoverageCap(d.market.id(), c.coverageCap);
         d.lossReporter.registerMarket(d.market);
-        // serah terima peran (§8.9)
+        // hand-over of the roles (§8.9)
         d.calendar.setGuardian(c.guardian);
         d.session.setRoles(c.guardian, c.keeperSigner);
         d.risk.setRoles(c.calibrator, c.guardian);

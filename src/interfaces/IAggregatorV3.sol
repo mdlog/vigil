@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-/// Subset Chainlink AggregatorV3Interface yang dipakai Vigil.
+/// The subset of the Chainlink AggregatorV3Interface that Vigil uses.
 interface IAggregatorV3 {
     function decimals() external view returns (uint8);
     function latestRoundData()

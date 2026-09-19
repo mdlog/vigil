@@ -8,10 +8,10 @@ import {MarketParamsLib} from "morpho-blue/libraries/MarketParamsLib.sol";
 import {MorphoBalancesLib} from "morpho-blue/libraries/periphery/MorphoBalancesLib.sol";
 import {Regime, IVigilSessionOracle, IVigilRiskEngine, IVigilOracle, IVigilPremium} from "./interfaces/IVigil.sol";
 
-/// @title VigilPremium — escrow USDG dan akrual premi sesi per posisi Morpho (PRD §8.4).
-/// @notice due = borrowed × m(b) × Δindex. Index per aset (integral waktu pada b_ref) dari VigilSessionOracle;
-///         m(b) di-sample pada setiap accrue. Premi mengalir ke VigilBackstop; sebagian kecil ke bounty poke.
-///         Morpho permissionless: hanya peminjam yang opt-in (topUp + setAuthorization) yang menjadi member.
+/// @title VigilPremium — USDG escrow and session-premium accrual per Morpho position (PRD §8.4).
+/// @notice due = borrowed × m(b) × Δindex. The per-asset index (a time integral at b_ref) comes from
+///         VigilSessionOracle; m(b) is sampled at every accrue. Premiums flow to VigilBackstop; a small share to
+///         the poke bounty. Morpho is permissionless: only borrowers who opt in (topUp + setAuthorization) are members.
 contract VigilPremium is IVigilPremium {
     using SafeERC20 for IERC20;
     using MarketParamsLib for MarketParams;
@@ -23,16 +23,16 @@ contract VigilPremium is IVigilPremium {
     }
 
     struct Escrow {
-        uint128 balance; // USDG tersedia
-        uint128 owed; // premi jatuh tempo yang belum terbayar (escrow habis)
+        uint128 balance; // USDG available
+        uint128 owed; // premium due but unpaid (escrow exhausted)
         uint256 lastIndex;
-        uint256 multWad; // m(b) yang di-sample saat accrue terakhir
-        uint256 paid; // total premi yang sudah dibayar
+        uint256 multWad; // m(b) sampled at the last accrue
+        uint256 paid; // total premium paid so far
         uint64 delinquentSince;
         bool tracked;
     }
 
-    uint16 public constant POKE_BOUNTY_BPS = 100; // 1% dari premi → bounty pool poke()
+    uint16 public constant POKE_BOUNTY_BPS = 100; // 1 % of the premium → poke() bounty pool
     uint64 public constant MIN_RESERVE_SECONDS = 7 days;
     uint64 public constant L_WEEKEND = 235_800;
     uint256 internal constant WAD = 1e18;
@@ -42,7 +42,7 @@ contract VigilPremium is IVigilPremium {
     IVigilRiskEngine public immutable RISK;
     IERC20 public immutable USDG;
     address public immutable BACKSTOP;
-    address public preLiquidation; // one-shot (ketergantungan melingkar)
+    address public preLiquidation; // one-shot (circular dependency)
     address public guardian;
 
     mapping(Id => MarketCfg) internal markets;
@@ -101,7 +101,7 @@ contract VigilPremium is IVigilPremium {
         Id id = p.id();
         if (markets[id].registered) revert AlreadySet();
         markets[id] = MarketCfg(p, true);
-        // allowance untuk fundBounty; OZ safeApprove menolak bila sudah ≠ 0 (pasar kedua dst.)
+        // allowance for fundBounty; OZ safeApprove refuses when it is already ≠ 0 (second market onwards)
         if (USDG.allowance(address(this), address(SESSION)) == 0) {
             USDG.safeApprove(address(SESSION), type(uint256).max);
         }
@@ -116,7 +116,7 @@ contract VigilPremium is IVigilPremium {
         return escrows[id][borrower];
     }
 
-    // ───────────────────────── akrual ─────────────────────────
+    // ───────────────────────── accrual ─────────────────────────
 
     /// LIF Morpho: min(1.15, 1 / (1 − 0.3 × (1 − LLTV))) = min(1.15, 1/(0.3×LLTV + 0.7))
     function _lif(uint256 lltv) internal pure returns (uint256) {
@@ -124,7 +124,7 @@ contract VigilPremium is IVigilPremium {
         return lif > 1.15e18 ? 1.15e18 : lif;
     }
 
-    /// b = 1 − LTV × LIF (bps), LTV pada harga tanpa haircut.
+    /// b = 1 − LTV × LIF (bps), LTV at the unhaircut price.
     function bufferBps(Id id, address borrower, uint256 borrowed) public view returns (uint256) {
         MarketCfg storage m = markets[id];
         Position memory p = MORPHO.position(id, borrower);
@@ -137,7 +137,7 @@ contract VigilPremium is IVigilPremium {
         return x >= WAD ? 0 : (WAD - x) / 1e14;
     }
 
-    /// Cadangan minimum: 7 hari × π_ref(CLOSED, L_akhir_pekan) × m(b) × notional.
+    /// Minimum reserve: 7 days × π_ref(CLOSED, L_weekend) × m(b) × notional.
     function minReserve(Id id, address borrower) public view returns (uint256) {
         MarketCfg storage m = markets[id];
         uint256 borrowed = MORPHO.expectedBorrowAssets(m.params, borrower);
@@ -155,7 +155,7 @@ contract VigilPremium is IVigilPremium {
         if (!m.registered) revert NotRegistered();
         address asset = m.params.collateralToken;
         Escrow storage e = escrows[id][borrower];
-        SESSION.poke(asset); // persistenkan progres index agar akrual tidak pernah tertinggal
+        SESSION.poke(asset); // persist the index progress so accrual never falls behind
         uint256 idxNow = SESSION.premiumIndex(asset);
         uint256 borrowed = MORPHO.expectedBorrowAssets(m.params, borrower);
         if (e.tracked) {
@@ -198,7 +198,7 @@ contract VigilPremium is IVigilPremium {
         }
     }
 
-    /// Permissionless — siapa pun boleh memanggil, terutama saat b posisi memburuk.
+    /// Permissionless — anyone may call it, especially when a position's b deteriorates.
     function accrue(Id id, address borrower) external {
         _accrue(id, borrower);
     }
@@ -234,7 +234,7 @@ contract VigilPremium is IVigilPremium {
 
     function isDelinquent(Id id, address borrower) public view returns (bool) {
         Escrow storage e = escrows[id][borrower];
-        if (!e.tracked) return true; // belum pernah opt-in
+        if (!e.tracked) return true; // never opted in
         if (e.owed > 0) return true;
         uint256 borrowed = MORPHO.expectedBorrowAssets(markets[id].params, borrower);
         if (borrowed == 0) return false;

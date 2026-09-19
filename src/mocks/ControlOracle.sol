@@ -4,8 +4,8 @@ pragma solidity ^0.8.19;
 import {IOracle} from "morpho-blue/interfaces/IOracle.sol";
 import {IAggregatorV3} from "../interfaces/IAggregatorV3.sol";
 
-/// Oracle pasar kontrol (Market A): feed mentah × SCALE_FACTOR, tanpa kesadaran sesi — semantik
-/// MorphoChainlinkOracleV2 satu-feed tanpa quote feed. Dipakai hanya untuk perbandingan demo.
+/// The control market's oracle (Market A): raw feed × SCALE_FACTOR, no session awareness — the semantics
+/// of a single-feed MorphoChainlinkOracleV2 without a quote feed. Used only for the demo comparison.
 contract ControlOracle is IOracle {
     uint256 public immutable SCALE_FACTOR;
     address public immutable FEED;

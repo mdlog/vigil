@@ -15,9 +15,9 @@ import {
     IVigilPremium
 } from "./interfaces/IVigil.sol";
 
-/// @title VigilPreLiquidation — soft unwind sadar-sesi (pola Morpho PreLiquidation, opt-in via setAuthorization) (PRD §8.6).
-/// @notice Ambang: LTV pada harga × (1 − H_soft) ≥ LLTV, dengan H_soft = max(H, cap + softMargin) — selalu lebih ketat
-///         dari likuidasi keras (FR-34). Diskon Dutch berbasis WAKTU (FCFS, tanpa priority fee) mulai dari 0.
+/// @title VigilPreLiquidation — session-aware soft unwind (the Morpho PreLiquidation pattern, opt-in via setAuthorization) (PRD §8.6).
+/// @notice Threshold: LTV at price × (1 − H_soft) ≥ LLTV, with H_soft = max(H, cap + softMargin) — always tighter
+///         than the hard liquidation (FR-34). A TIME-based Dutch discount (FCFS, no priority fee) starting from 0.
 contract VigilPreLiquidation {
     using SafeERC20 for IERC20;
     using MarketParamsLib for MarketParams;
@@ -91,7 +91,7 @@ contract VigilPreLiquidation {
         return markets[id].params;
     }
 
-    // ───────────────────────── ambang ─────────────────────────
+    // ───────────────────────── threshold ─────────────────────────
 
     function softHaircutBps(Id id) public view returns (uint256) {
         MarketCfg storage m = markets[id];
@@ -100,15 +100,15 @@ contract VigilPreLiquidation {
         return h > floor_ ? h : floor_;
     }
 
-    /// Aktif di jendela pre-close, selama penutupan (termasuk halt keeper), atau saat delinquent.
+    /// Active in the pre-close window, during a closure (including a keeper halt), or while delinquent.
     function _window(Id id) internal view returns (bool active, uint64 windowStart) {
         address asset = markets[id].params.collateralToken;
         (uint64 closeAt, uint64 nextOpen, bool inClosure,,, uint64 tightSince) = SESSION.closureOf(asset);
         uint64 pre = RISK.preCloseWindow();
         if (inClosure) {
             windowStart = closeAt > pre ? closeAt - pre : 0;
-            // Jendela dihitung sejak penutupan DIMULAI: pengetatan yang hanya memperpanjang penutupan kalender
-            // (open ditunda) tidak me-reset diskon Dutch; halt ad-hoc / rule 3 memulai jendela pada tightSince.
+            // The window counts from the START of the closure: a tightening that merely extends a calendar closure
+            // (delayed open) does not reset the Dutch discount; an ad-hoc halt / rule 3 starts the window at tightSince.
             Session memory cs = SESSION.calendar().sessionAt(uint64(block.timestamp));
             bool calendarClosure = cs.cal != Regime.MARKET && closeAt == cs.closeAt;
             if (!calendarClosure && tightSince > windowStart) windowStart = tightSince;
@@ -131,7 +131,7 @@ contract VigilPreLiquidation {
         return uint256(MAX_UNWIND_DISCOUNT_BPS) * elapsed / UNWIND_RAMP;
     }
 
-    /// R = (D − target×Cv) / (1 − target×(1+d)); unwind parsial sampai LTV = target (FR-30).
+    /// R = (D − target×Cv) / (1 − target×(1+d)); partial unwind down to LTV = target (FR-30).
     function _maxRepay(uint256 debt, uint256 collVal, uint256 target, uint256 dBps) internal pure returns (uint256) {
         uint256 floorDebt = target * collVal / WAD;
         if (debt <= floorDebt) return 0;
@@ -140,7 +140,7 @@ contract VigilPreLiquidation {
         return r > debt ? debt : r;
     }
 
-    /// @return ltvSoft LTV pada harga × (1 − H_soft) (WAD); @return debt utang; @return collVal nilai jaminan tanpa haircut
+    /// @return ltvSoft LTV at price × (1 − H_soft) (WAD); @return debt the debt; @return collVal the unhaircut collateral value
     function _softLtv(Id id, address borrower) internal view returns (uint256 ltvSoft, uint256 debt, uint256 collVal) {
         MarketCfg storage m = markets[id];
         debt = MORPHO.expectedBorrowAssets(m.params, borrower);
@@ -165,7 +165,7 @@ contract VigilPreLiquidation {
         return (maxRepay > 0, maxRepay);
     }
 
-    /// Unwinder membayar `repay` USDG dan menerima jaminan senilai repay × (1 + diskon) pada harga tanpa haircut.
+    /// The unwinder pays `repay` USDG and receives collateral worth repay × (1 + discount) at the unhaircut price.
     function preLiquidate(Id id, address borrower, uint256 repayAssets, bytes calldata)
         external
         returns (uint256 repaid, uint256 seized)
@@ -181,7 +181,7 @@ contract VigilPreLiquidation {
         IERC20(m.params.loanToken).safeTransferFrom(msg.sender, address(this), repaid);
         IERC20(m.params.loanToken).safeApprove(address(MORPHO), repaid);
         MORPHO.repay(m.params, repaid, 0, borrower, "");
-        MORPHO.withdrawCollateral(m.params, seized, borrower, msg.sender); // butuh setAuthorization dari peminjam
+        MORPHO.withdrawCollateral(m.params, seized, borrower, msg.sender); // needs setAuthorization from the borrower
         emit Unwound(id, borrower, msg.sender, repaid, seized, d);
     }
 }

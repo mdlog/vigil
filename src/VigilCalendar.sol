@@ -3,15 +3,15 @@ pragma solidity ^0.8.19;
 
 import {Regime, Session, IVigilCalendar} from "./interfaces/IVigil.sol";
 
-/// @title VigilCalendar — kalender sesi bursa AS (ET) yang deterministik dari block.timestamp (PRD §8.0, FR-32).
-/// @notice Transisi DST 2022–2030 di-hardcode (D11). Libur/early-close hanya bisa DITAMBAH oleh guardian untuk
-///         tanggal > hari ini + 7 (memperketat), tidak pernah dihapus. Di luar tabel DST diperlakukan sebagai EST.
+/// @title VigilCalendar — a deterministic US exchange session calendar (ET) from block.timestamp (PRD §8.0, FR-32).
+/// @notice DST transitions 2022–2030 are hard-coded (D11). Holidays / early closes can only be ADDED by the guardian
+///         for dates > today + 7 (a tightening), never removed. Outside the DST table everything is treated as EST.
 contract VigilCalendar is IVigilCalendar {
     uint32 public constant MARKET_OPEN = 34_200; // 09:30 ET
     uint32 public constant MARKET_CLOSE = 57_600; // 16:00 ET
     uint32 public constant HALF_CLOSE = 46_800; // 13:00 ET (early close)
     uint32 public constant EXT_OPEN = 14_400; // 04:00 ET (pre-market)
-    uint32 public constant EXT_CLOSE = 72_000; // 20:00 ET (akhir post-market)
+    uint32 public constant EXT_CLOSE = 72_000; // 20:00 ET (end of post-market)
     uint32 internal constant DAY = 86_400;
     uint64 internal constant EST_OFFSET = 5 hours;
     uint64 internal constant EDT_OFFSET = 4 hours;
@@ -21,7 +21,7 @@ contract VigilCalendar is IVigilCalendar {
     uint8 public constant KIND_HALF = 2;
 
     address public guardian;
-    /// indeks hari ET (hari sejak 1970-01-01, tanggal ET) → jenis hari
+    /// ET day index (days since 1970-01-01, ET date) → kind of day
     mapping(uint32 => uint8) public dayKind;
 
     event HolidayAdded(uint32 indexed etDay, uint8 kind);
@@ -42,7 +42,7 @@ contract VigilCalendar is IVigilCalendar {
         }
     }
 
-    // ───────────────────────── kendali (hanya memperketat) ─────────────────────────
+    // ───────────────────────── control (tighten only) ─────────────────────────
 
     function addHoliday(uint32 etDay, uint8 kind) external {
         if (msg.sender != guardian) revert NotGuardian();
@@ -60,9 +60,9 @@ contract VigilCalendar is IVigilCalendar {
         emit GuardianSet(g);
     }
 
-    // ───────────────────────── waktu ET ─────────────────────────
+    // ───────────────────────── ET time ─────────────────────────
 
-    /// @dev Awal DST = Minggu ke-2 Maret 02:00 EST (07:00 UTC); akhir = Minggu ke-1 November 02:00 EDT (06:00 UTC).
+    /// @dev DST starts on the 2nd Sunday of March at 02:00 EST (07:00 UTC) and ends on the 1st Sunday of November at 02:00 EDT (06:00 UTC).
     function isDst(uint64 utc) public pure returns (bool) {
         if (utc < 1647154800) return false;
         if (utc < 1667714400) return true; // 2022
@@ -89,23 +89,23 @@ contract VigilCalendar is IVigilCalendar {
         return isDst(utc) ? EDT_OFFSET : EST_OFFSET;
     }
 
-    /// @return day indeks hari ET; @return tod detik sejak tengah malam ET
+    /// @return day the ET day index; @return tod seconds since midnight ET
     function etDayOf(uint64 utc) public pure returns (uint32 day, uint32 tod) {
         uint64 et = utc - etOffset(utc);
         day = uint32(et / DAY);
         tod = uint32(et % DAY);
     }
 
-    /// @dev Batas sesi tidak pernah jatuh pada 02:00 (jam transisi DST), sehingga pemetaan ini tidak ambigu.
+    /// @dev No session boundary ever falls at 02:00 (the DST transition hour), so this mapping is unambiguous.
     function toUtc(uint32 day, uint32 tod) public pure returns (uint64) {
         uint64 est = uint64(day) * DAY + tod + EST_OFFSET;
         return isDst(est) ? est - 1 hours : est;
     }
 
-    // ───────────────────────── hari perdagangan ─────────────────────────
+    // ───────────────────────── trading days ─────────────────────────
 
     function isTradingDay(uint32 day) public view returns (bool) {
-        uint8 dow = uint8((day + 3) % 7); // 0 = Senin (1970-01-01 adalah Kamis)
+        uint8 dow = uint8((day + 3) % 7); // 0 = Monday (1970-01-01 was a Thursday)
         return dow < 5 && dayKind[day] != KIND_CLOSED;
     }
 
@@ -123,7 +123,7 @@ contract VigilCalendar is IVigilCalendar {
         while (!isTradingDay(d)) --d;
     }
 
-    // ───────────────────────── sesi ─────────────────────────
+    // ───────────────────────── sessions ─────────────────────────
 
     function sessionAt(uint64 ts) public view returns (Session memory s) {
         (uint32 day, uint32 tod) = etDayOf(ts);
@@ -162,7 +162,7 @@ contract VigilCalendar is IVigilCalendar {
                 s.segmentEnd = toUtc(n, EXT_OPEN);
             } else {
                 uint32 p = prevTradingDay(day);
-                s.cal = (p == day - 1) ? Regime.OVERNIGHT : Regime.CLOSED; // dini hari
+                s.cal = (p == day - 1) ? Regime.OVERNIGHT : Regime.CLOSED; // small hours
                 s.closeAt = toUtc(p, closeTodOf(p));
                 s.nextOpen = toUtc(day, MARKET_OPEN);
                 s.lastOpen = toUtc(p, MARKET_OPEN);

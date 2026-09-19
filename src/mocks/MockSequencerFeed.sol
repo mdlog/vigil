@@ -3,7 +3,7 @@ pragma solidity ^0.8.19;
 
 import {IAggregatorV3} from "../interfaces/IAggregatorV3.sol";
 
-/// L2 sequencer uptime feed tiruan: answer 0 = up, 1 = down; startedAt = awal status saat ini.
+/// A mock L2 sequencer uptime feed: answer 0 = up, 1 = down; startedAt = when the current status began.
 contract MockSequencerFeed is IAggregatorV3 {
     int256 public status;
     uint256 public startedAt;

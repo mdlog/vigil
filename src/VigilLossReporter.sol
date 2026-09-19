@@ -11,14 +11,14 @@ import {MorphoBalancesLib} from "morpho-blue/libraries/periphery/MorphoBalancesL
 import {Regime, IVigilSessionOracle, IVigilPremium, IVigilBackstop} from "./interfaces/IVigil.sol";
 
 interface IVigilLiquidateCallback {
-    /// Dipanggil setelah jaminan diterima; callee wajib mengirim `repaidAssets` loan token ke LossReporter.
+    /// Called after the collateral is received; the callee must send `repaidAssets` of loan token to the LossReporter.
     function onVigilLiquidate(uint256 repaidAssets, uint256 seizedAssets, bytes calldata data) external;
 }
 
-/// @title VigilLossReporter — `liquidateWithCover`: backstop melunasi shortfall atas nama peminjam member SEBELUM
-///        seizure, dalam transaksi yang sama, sehingga Morpho tidak pernah merealisasi bad debt (PRD §8.7, FR-37).
-/// @dev Morpho Blue menolkan borrowShares dan mengurangi totalSupplyAssets di dalam liquidate() begitu collateral == 0;
-///      tidak ada state pasca-likuidasi yang bisa "dibuktikan", dan supply setelahnya tidak memulihkan pemasok lama.
+/// @title VigilLossReporter — `liquidateWithCover`: the backstop repays a member borrower's shortfall BEFORE the
+///        seizure, in the same transaction, so Morpho never realizes bad debt (PRD §8.7, FR-37).
+/// @dev Morpho Blue zeroes borrowShares and reduces totalSupplyAssets inside liquidate() as soon as collateral == 0;
+///      there is no post-liquidation state to "prove", and supplying afterwards does not make the old suppliers whole.
 contract VigilLossReporter is IMorphoLiquidateCallback {
     using SafeERC20 for IERC20;
     using MarketParamsLib for MarketParams;
@@ -29,9 +29,9 @@ contract VigilLossReporter is IMorphoLiquidateCallback {
         bool registered;
     }
 
-    uint64 public constant COVER_WINDOW = 1 hours; // bad debt yang tercetak saat open masih tercakup
+    uint64 public constant COVER_WINDOW = 1 hours; // bad debt printed at the open is still covered
     uint16 public constant COVER_BOUNTY_BPS = 10;
-    uint256 public constant DUST = 1e3; // 0,001 USDG: margin pembulatan agar seizure penuh tidak menyisakan bad debt
+    uint256 public constant DUST = 1e3; // 0.001 USDG: rounding margin so a full seizure leaves no bad debt
     uint256 internal constant WAD = 1e18;
 
     IMorpho public immutable MORPHO;
@@ -42,7 +42,7 @@ contract VigilLossReporter is IMorphoLiquidateCallback {
     address public guardian;
     mapping(Id => MarketCfg) internal markets;
 
-    // konteks transaksi likuidasi (di-set/dibersihkan dalam satu tx)
+    // liquidation transaction context (set and cleared within one tx)
     address internal currentLiquidator;
     address internal currentCollateral;
     bytes internal currentData;
@@ -105,7 +105,7 @@ contract VigilLossReporter is IMorphoLiquidateCallback {
         return block.timestamp - lastOpen <= COVER_WINDOW;
     }
 
-    /// Shortfall = utang − yang bisa dilunasi seizure penuh pada harga oracle pasar (dengan LIF).
+    /// Shortfall = debt − what a full seizure repays at the market's oracle price (with the LIF).
     function previewCover(Id id, address borrower)
         public
         view
@@ -127,7 +127,7 @@ contract VigilLossReporter is IMorphoLiquidateCallback {
         }
     }
 
-    /// Likuidasi posisi `borrower` dengan cover backstop bila member & rezim tercakup. `data` opsional → callback.
+    /// Liquidate `borrower`'s position with backstop cover when a member & the regime is covered. Optional `data` → callback.
     function liquidateWithCover(Id id, address borrower, bytes calldata data)
         external
         returns (uint256 seized, uint256 repaid, uint256 covered)
@@ -162,7 +162,7 @@ contract VigilLossReporter is IMorphoLiquidateCallback {
             covered = need;
             bounty = got - need;
         } else {
-            covered = got; // cap/aset backstop habis: cover parsial, tanpa bounty
+            covered = got; // cap / backstop assets exhausted: partial cover, no bounty
         }
         if (covered > 0) {
             USDG.safeApprove(address(MORPHO), covered);
@@ -170,9 +170,9 @@ contract VigilLossReporter is IMorphoLiquidateCallback {
         }
     }
 
-    /// Setelah cover: jika sisa utang ≤ yang bisa dilunasi seizure penuh → lunasi seluruh sisa utang lewat
-    /// repaidShares (jaminan sisa > 0, bad debt tidak pernah direalisasi). Jika tidak (cover parsial) → sita
-    /// seluruh jaminan; sisa bad debt tersosialisasi oleh Morpho — dicatat di event, tidak disembunyikan.
+    /// After the cover: if the remaining debt ≤ what a full seizure repays → repay all of it through
+    /// repaidShares (collateral left > 0, bad debt never realized). Otherwise (partial cover) → seize all the
+    /// collateral; the remaining bad debt is socialized by Morpho — recorded in the event, not hidden.
     function _liquidate(MarketParams memory params, Id id, address borrower)
         internal
         returns (uint256 seized, uint256 repaid)
@@ -192,7 +192,7 @@ contract VigilLossReporter is IMorphoLiquidateCallback {
         emit Covered(id, borrower, msg.sender, shortfall, covered, bounty, uint8(eff));
     }
 
-    /// Morpho memanggil ini setelah mentransfer jaminan ke kontrak ini dan sebelum menarik loan token.
+    /// Morpho calls this after transferring the collateral to this contract and before pulling the loan token.
     function onMorphoLiquidate(uint256 repaidAssets, bytes calldata) external {
         if (msg.sender != address(MORPHO)) revert NotMorpho();
         IERC20 coll = IERC20(currentCollateral);

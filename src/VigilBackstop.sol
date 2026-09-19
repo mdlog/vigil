@@ -8,9 +8,9 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Id} from "morpho-blue/interfaces/IMorpho.sol";
 import {Regime, IVigilCalendar, IVigilBackstop} from "./interfaces/IVigil.sol";
 
-/// @title VigilBackstop — tranche first-loss USDG (ERC-4626) yang menerima premi dan meng-cover bad debt member (PRD §8.5).
-/// @notice Keluar hanya lewat request → cooldown 7 hari → claim saat MARKET, dikonversi pada harga share SAAT CLAIM:
-///         penanggung risiko akhir pekan tidak bisa keluar di Jumat malam, dan tidak bisa memesan harga Jumat siang.
+/// @title VigilBackstop — the USDG first-loss tranche (ERC-4626) that receives premiums and covers members' bad debt (PRD §8.5).
+/// @notice Exit only via request → 7-day cooldown → claim during MARKET, converted at the share price AT CLAIM TIME:
+///         whoever carries the weekend risk cannot leave on Friday night, nor lock in Friday afternoon's price.
 contract VigilBackstop is ERC4626, IVigilBackstop {
     using SafeERC20 for IERC20;
 
@@ -56,10 +56,10 @@ contract VigilBackstop is ERC4626, IVigilBackstop {
     }
 
     function _decimalsOffset() internal pure override returns (uint8) {
-        return 6; // virtual shares: menutup inflation attack pada vault first-loss
+        return 6; // virtual shares: closes the inflation attack on a first-loss vault
     }
 
-    // ───────────────────────── kendali ─────────────────────────
+    // ───────────────────────── control ─────────────────────────
 
     function transferGuardian(address g) external {
         if (msg.sender != guardian) revert NotGuardian();
@@ -78,7 +78,7 @@ contract VigilBackstop is ERC4626, IVigilBackstop {
         emit CoverageCapSet(marketId, cap);
     }
 
-    // ───────────────────────── jalur keluar ─────────────────────────
+    // ───────────────────────── exit path ─────────────────────────
 
     function withdraw(uint256, address, address) public pure override returns (uint256) {
         revert Disabled();
@@ -97,7 +97,7 @@ contract VigilBackstop is ERC4626, IVigilBackstop {
     }
 
     function requestWithdraw(uint256 shares) external returns (uint256 id) {
-        _transfer(msg.sender, address(this), shares); // share di-escrow, tetap menyerap kerugian
+        _transfer(msg.sender, address(this), shares); // shares are escrowed and keep absorbing losses
         escrowedShares += shares;
         id = requests.length;
         uint64 readyAt = uint64(block.timestamp) + COOLDOWN;
@@ -111,7 +111,7 @@ contract VigilBackstop is ERC4626, IVigilBackstop {
         if (r.claimed) revert AlreadyClaimed();
         if (block.timestamp < r.readyAt) revert NotReady();
         if (CAL.sessionAt(uint64(block.timestamp)).cal != Regime.MARKET) revert NotMarket();
-        assets = previewRedeem(r.shares); // harga saat claim (FR-25)
+        assets = previewRedeem(r.shares); // price at claim time (FR-25)
         r.claimed = true;
         escrowedShares -= r.shares;
         _burn(address(this), r.shares);

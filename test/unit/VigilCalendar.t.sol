@@ -8,7 +8,7 @@ import {CalendarFixture} from "../CalendarFixture.sol";
 import {VigilParams} from "../../script/DeployLib.sol";
 
 contract VigilCalendarTest is Test {
-    // Jangkar dari zoneinfo (America/New_York) — independen dari implementasi.
+    // Anchors from zoneinfo (America/New_York) — independent of the implementation.
     uint64 constant FRI_1500 = 1722625200; // 2024-08-02 15:00 ET
     uint64 constant FRI_1600 = 1722628800;
     uint64 constant THU_1600 = 1722542400;
@@ -36,7 +36,7 @@ contract VigilCalendarTest is Test {
     uint64 constant DST_FRI_0930 = 1772807400; // 2026-03-06 09:30 EST
     uint64 constant DST_MON_0930 = 1773063000; // 2026-03-09 09:30 EDT
     uint64 constant DST_FRI_1600 = 1772830800;
-    uint64 constant NOW_REF = 1789782120; // 2026-09-18 21:42 ET (Jumat)
+    uint64 constant NOW_REF = 1789782120; // 2026-09-18 21:42 ET (Friday)
 
     VigilCalendar cal;
     address guardian = address(0xA11CE);
@@ -50,7 +50,7 @@ contract VigilCalendarTest is Test {
         assertEq(uint8(s.cal), uint8(Regime.MARKET));
         assertEq(s.closeAt, FRI_1600);
         assertEq(s.nextOpen, MON_0930);
-        assertEq(s.nextOpen - s.closeAt, 235_800); // L akhir pekan (§6.2)
+        assertEq(s.nextOpen - s.closeAt, 235_800); // weekend L (§6.2)
         assertEq(s.lastOpen, FRI_0930);
         assertEq(s.prevClose, THU_1600);
         assertEq(s.segmentEnd, FRI_1600);
@@ -60,7 +60,7 @@ contract VigilCalendarTest is Test {
         Session memory a = cal.sessionAt(SAT_1200);
         Session memory b = cal.sessionAt(SUN_2100);
         assertEq(uint8(a.cal), uint8(Regime.CLOSED));
-        assertEq(uint8(b.cal), uint8(Regime.CLOSED)); // Minggu 20:00→Senin 04:00 tetap CLOSED (§8.0)
+        assertEq(uint8(b.cal), uint8(Regime.CLOSED)); // Sunday 20:00 → Monday 04:00 stays CLOSED (§8.0)
         assertEq(a.closeAt, FRI_1600);
         assertEq(a.nextOpen, MON_0930);
         assertEq(b.closeAt, FRI_1600);
@@ -90,7 +90,7 @@ contract VigilCalendarTest is Test {
     function test_weeknightOvernight() public view {
         Session memory s = cal.sessionAt(MON_2100);
         assertEq(uint8(s.cal), uint8(Regime.OVERNIGHT));
-        assertEq(s.nextOpen - s.closeAt, 63_000); // satu overnight (§6.2)
+        assertEq(s.nextOpen - s.closeAt, 63_000); // one overnight (§6.2)
         assertEq(s.segmentEnd, TUE_0400);
         assertEq(uint8(cal.sessionAt(TUE_0400 - 1).cal), uint8(Regime.OVERNIGHT));
         assertEq(uint8(cal.sessionAt(TUE_0400).cal), uint8(Regime.EXTENDED));
@@ -101,7 +101,7 @@ contract VigilCalendarTest is Test {
         assertEq(uint8(s.cal), uint8(Regime.CLOSED));
         assertEq(s.closeAt, LAB_FRI_1600);
         assertEq(s.nextOpen, LAB_TUE_0930);
-        assertEq(s.nextOpen - s.closeAt, 322_200); // akhir pekan panjang (§6.2)
+        assertEq(s.nextOpen - s.closeAt, 322_200); // long weekend (§6.2)
         Session memory h = cal.sessionAt(LAB_MON_1200);
         assertEq(uint8(h.cal), uint8(Regime.CLOSED));
         assertEq(h.segmentEnd, LAB_TUE_0400);
@@ -128,11 +128,11 @@ contract VigilCalendarTest is Test {
         Session memory s = cal.sessionAt(DST_FRI_1600 + 1);
         assertEq(s.closeAt, DST_FRI_1600);
         assertEq(s.nextOpen, DST_MON_0930);
-        assertEq(s.nextOpen - s.closeAt, 235_800 - 3_600); // akhir pekan DST satu jam lebih pendek secara UTC
+        assertEq(s.nextOpen - s.closeAt, 235_800 - 3_600); // the DST weekend is one hour shorter in UTC
     }
 
     function test_liveReference_fridayNightIsClosed() public view {
-        // Jumat 18 Sep 2026 21:42 ET — saat verifikasi Hari 1 feed NVDA terakhir update 15:55.
+        // Friday 18 Sep 2026 21:42 ET — at the Day-1 verification the NVDA feed had last updated at 15:55.
         Session memory s = cal.sessionAt(NOW_REF);
         assertEq(uint8(s.cal), uint8(Regime.CLOSED));
         assertEq(s.closeAt, 1789761600);
@@ -158,7 +158,7 @@ contract VigilCalendarTest is Test {
     function testFuzz_roundTrip(uint64 ts) public view {
         ts = uint64(bound(ts, 1650000000, 1900000000));
         (uint32 day, uint32 tod) = cal.etDayOf(ts);
-        if (tod >= 4 hours) assertEq(cal.toUtc(day, tod), ts); // di luar jam transisi DST
+        if (tod >= 4 hours) assertEq(cal.toUtc(day, tod), ts); // outside the DST transition hour
         Session memory s = cal.sessionAt(ts);
         assertLe(s.closeAt, s.nextOpen);
         assertGt(s.segmentEnd, ts);
@@ -166,10 +166,10 @@ contract VigilCalendarTest is Test {
         if (s.cal != Regime.MARKET) assertLe(s.closeAt, ts);
     }
 
-    /// V15 (19 Sep 2026): daftar libur & early close RESMI NYSE 2024–2028, ditulis sebagai tanggal, harus sama persis
-    /// dengan tabel tertanam (CalendarFixture = script/DeployLib). Sumber: nyse.com/markets/hours-calendars (halaman
-    /// saat ini memuat 2026–2028), arsip Wayback halaman yang sama 29 Mei 2024 (2024) dan 5 Mar 2025 (2025), dan rilis
-    /// pers ICE/NYSE untuk penutupan ad-hoc 9 Jan 2025 (National Day of Mourning). Setiap tanggal → indeks hari ET.
+    /// V15 (19 Sep 2026): the OFFICIAL NYSE holiday & early-close list 2024–2028, written as dates, must match the
+    /// embedded table exactly (CalendarFixture = script/DeployLib). Sources: nyse.com/markets/hours-calendars (the
+    /// current page lists 2026–2028), Wayback snapshots of the same page from 29 May 2024 (2024) and 5 Mar 2025 (2025),
+    /// and the ICE/NYSE press release for the ad-hoc 9 Jan 2025 closure (National Day of Mourning). Each date → ET day index.
     function test_calendar_matchesOfficialNyse2024to2028() public view {
         uint32[50] memory closed;
         closed[0] = 19723; // 2024-01-01 Mon
@@ -240,17 +240,17 @@ contract VigilCalendarTest is Test {
         for (uint256 i; i < half.length; ++i) {
             assertEq(cal.dayKind(half[i]), cal.KIND_HALF(), "missing official early close");
         }
-        // tidak ada entri liar: jumlah tertanam = jumlah resmi
+        // no stray entries: embedded count = official count
         assertEq(CalendarFixture.closedDays().length, closed.length);
         assertEq(CalendarFixture.halfDays().length, half.length);
-        // dan tabel deploy = fixture test
+        // and the deploy table = the test fixture
         assertEq(keccak256(abi.encode(VigilParams.closedDays())), keccak256(abi.encode(CalendarFixture.closedDays())));
         assertEq(keccak256(abi.encode(VigilParams.halfDays())), keccak256(abi.encode(CalendarFixture.halfDays())));
     }
 
-    /// 1 Jan 2028 jatuh pada Sabtu: NYSE tidak mengobservasi libur — kalender pun tidak boleh menandai hari di sekitarnya.
+    /// 1 Jan 2028 falls on a Saturday: the NYSE does not observe the holiday — the calendar must not mark the days around it either.
     function test_calendar_noObservedNewYear2028() public view {
-        assertEq(cal.dayKind(21183), 0); // 2027-12-31 Fri: hari perdagangan penuh
-        assertEq(cal.dayKind(21186), 0); // 2028-01-03 Mon: hari perdagangan penuh
+        assertEq(cal.dayKind(21183), 0); // 2027-12-31 Fri: a full trading day
+        assertEq(cal.dayKind(21186), 0); // 2028-01-03 Mon: a full trading day
     }
 }

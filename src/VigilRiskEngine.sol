@@ -3,14 +3,14 @@ pragma solidity ^0.8.19;
 
 import {Regime, Session, IVigilSessionOracle, IVigilRiskEngine} from "./interfaces/IVigil.sol";
 
-/// @title VigilRiskEngine — risk surface per aset: haircut ter-ramp sebagai fungsi durasi penutupan L,
-///        event terjadwal, tabel premi referensi π_ref(L) dan pengali buffer m(b) (PRD §6, §8.2).
-/// @notice Kalibrasi off-chain; on-chain hanya lookup + interpolasi, dibatasi dan rate-limited. Semua ramp
-///         dihitung murni dari waktu (tanpa transaksi) sehingga tidak pernah ada step di jalur harga (FR-9).
+/// @title VigilRiskEngine — per-asset risk surface: a ramped haircut as a function of the closure length L,
+///        scheduled events, the reference premium table π_ref(L) and the buffer multiplier m(b) (PRD §6, §8.2).
+/// @notice Calibrated off-chain; on-chain there is only lookup + interpolation, bounded and rate-limited. Every
+///         ramp is computed purely from time (no transactions), so the price path never has a step (FR-9).
 contract VigilRiskEngine is IVigilRiskEngine {
     struct Surface {
-        uint64 sigmaGapWad; // σ close-to-open sesi reguler (WAD)
-        uint32 kTailBps; // pengali ekor, 1e4 = 1.0 (NVDA: 30_000)
+        uint64 sigmaGapWad; // close-to-open σ of a regular session (WAD)
+        uint32 kTailBps; // tail multiplier, 1e4 = 1.0 (NVDA: 30_000)
         uint16 hFloorBps;
         uint16 hMaxBps;
         uint64 updatedAt;
@@ -22,14 +22,14 @@ contract VigilRiskEngine is IVigilRiskEngine {
         uint16 multBps; // 1e4 = 1.0; <= EVENT_MULT_MAX
     }
 
-    /// Tabel π_ref per detik (WAD atas notional utang) pada b_ref, di-grid pada bucket L (naik monoton).
+    /// π_ref per second (WAD over the debt notional) at b_ref, on a grid of L buckets (monotonically increasing).
     struct PremiumTable {
         uint64[4] lBucket;
         uint128[4] rateNoEvent;
         uint128[4] rateEvent;
     }
 
-    /// Pengali m(b): interpolasi pada bucket b (bps, naik monoton); mult turun monoton; m(b_ref) = 1e18.
+    /// Multiplier m(b): interpolated over b buckets (bps, increasing); mult decreases monotonically; m(b_ref) = 1e18.
     struct BufferTable {
         uint16[6] bBps;
         uint128[6] multWad;
@@ -46,7 +46,7 @@ contract VigilRiskEngine is IVigilRiskEngine {
     uint32 public constant K_MAX_BPS = 100_000; // 10×
     uint64 public constant TAU_NIGHT = 63_000;
     uint64 public constant L_WEEKEND = 235_800;
-    uint256 public constant PREMIUM_MAX_PER_SECOND = 1e12; // ≈ 8,6%/hari atas utang — batas keras
+    uint256 public constant PREMIUM_MAX_PER_SECOND = 1e12; // ≈ 8.6 %/day of the debt — hard cap
     uint256 public constant MULT_MAX = 20e18;
     uint256 internal constant WAD = 1e18;
     uint256 internal constant BPS = 10_000;
@@ -99,7 +99,7 @@ contract VigilRiskEngine is IVigilRiskEngine {
         emit RolesSet(calibrator_, guardian_);
     }
 
-    // ───────────────────────── kalibrasi (guarded) ─────────────────────────
+    // ───────────────────────── calibration (guarded) ─────────────────────────
 
     function setSurface(address asset, Surface calldata s) external onlyCalibrator {
         if (s.hMaxBps > GLOBAL_H_MAX) revert AboveGlobalMax();
@@ -112,7 +112,7 @@ contract VigilRiskEngine is IVigilRiskEngine {
             uint256 d = hOld > hNew ? hOld - hNew : hNew - hOld;
             if (d > MAX_DELTA_BPS) revert DeltaTooLarge();
             prevSurfaces[asset] = old;
-            rampStart[asset] = uint64(block.timestamp); // MIN_UPDATE_INTERVAL >= RAMP_SECONDS → ramp sebelumnya sudah selesai
+            rampStart[asset] = uint64(block.timestamp); // MIN_UPDATE_INTERVAL >= RAMP_SECONDS → the previous ramp has finished
             emit RampStarted(asset, hOld, hNew, uint64(block.timestamp) + RAMP_SECONDS);
         }
         surfaces[asset] = s;
@@ -120,7 +120,7 @@ contract VigilRiskEngine is IVigilRiskEngine {
         emit SurfaceUpdated(asset, s.sigmaGapWad, s.kTailBps, s.hFloorBps, s.hMaxBps);
     }
 
-    /// Event (earnings / corporate action terjadwal) harus diumumkan ≥ EVENT_LEAD_TIME sebelumnya; ramp-nya sendiri.
+    /// An event (earnings / scheduled corporate action) must be announced ≥ EVENT_LEAD_TIME ahead; it has its own ramp.
     function scheduleEvent(address asset, ScheduledEvent calldata e) external onlyCalibrator {
         if (e.from < block.timestamp + EVENT_LEAD_TIME) revert LeadTimeTooShort();
         if (e.until <= e.from || e.until - e.from > EVENT_MAX_LENGTH) revert BadEvent();
@@ -166,7 +166,7 @@ contract VigilRiskEngine is IVigilRiskEngine {
         }
     }
 
-    /// @dev H(L) = clamp(H_floor + k × σ_gap × eventMult × sqrt(L/τ_night), H_floor, min(H_max, GLOBAL_H_MAX)). Monoton dalam L (INV-2).
+    /// @dev H(L) = clamp(H_floor + k × σ_gap × eventMult × sqrt(L/τ_night), H_floor, min(H_max, GLOBAL_H_MAX)). Monotone in L (INV-2).
     function closureHaircutBps(Surface memory sf, uint64 L, uint256 eventMultBps) public pure returns (uint256 h) {
         uint256 scaleWad = sqrt(uint256(L) * WAD * WAD / TAU_NIGHT);
         uint256 sigmaEffWad = uint256(sf.sigmaGapWad) * eventMultBps / BPS * scaleWad / WAD;
@@ -177,7 +177,7 @@ contract VigilRiskEngine is IVigilRiskEngine {
         if (h < sf.hFloorBps) h = sf.hFloorBps;
     }
 
-    /// Pengali event pada waktu ts, ter-ramp masuk (1 jam sebelum `from`) dan keluar (1 jam setelah `until`).
+    /// Event multiplier at time ts, ramped in (1 h before `from`) and out (1 h after `until`).
     function eventMultBpsAt(address asset, uint64 ts) public view returns (uint256) {
         ScheduledEvent memory e = events[asset];
         if (e.until == 0) return BPS;
@@ -196,13 +196,13 @@ contract VigilRiskEngine is IVigilRiskEngine {
         return e.until != 0 && ts >= e.from && ts <= e.until;
     }
 
-    /// @dev Bentuk haircut pada `now`, dalam faktor ramp WAD:
-    ///      (fIn, L)        — penutupan KALENDER yang aktif/mendekat, di-ramp sejak closeAt − PRE_CLOSE_WINDOW;
-    ///      (fTight, Lt)    — penutupan EFEKTIF bila lebih ketat (attestation keeper / rule 3), di-ramp sejak
-    ///                        `tightSince`; hanya pernah MENAMBAH di atas bentuk kalender, tidak pernah mengurangi
-    ///                        (ditemukan fuzzer: ramp yang dimulai ulang dari nol saat attestation membuat harga
-    ///                        melompat naik lalu turun 500 bps saat kalender menyusul — INV-3);
-    ///      (fOut, Lprev)   — ramp-out penutupan sebelumnya setelah open.
+    /// @dev The shape of the haircut at `now`, as WAD ramp factors:
+    ///      (fIn, L)        — the active/approaching CALENDAR closure, ramped from closeAt − PRE_CLOSE_WINDOW;
+    ///      (fTight, Lt)    — the EFFECTIVE closure when it is tighter (keeper attestation / rule 3), ramped from
+    ///                        `tightSince`; it only ever ADDS on top of the calendar shape, never subtracts
+    ///                        (found by the fuzzer: a ramp restarted from zero at an attestation made the price
+    ///                        jump up and then drop 500 bps when the calendar caught up — INV-3);
+    ///      (fOut, Lprev)   — the ramp-out of the previous closure after the open.
     function _calShape(address asset)
         internal
         view
@@ -212,7 +212,7 @@ contract VigilRiskEngine is IVigilRiskEngine {
             SESSION.closureOf(asset);
         Session memory cs = SESSION.calendar().sessionAt(uint64(block.timestamp));
         uint64 now_ = uint64(block.timestamp);
-        // 1) kalender saja
+        // 1) calendar only
         if (cs.cal != Regime.MARKET) {
             L = cs.nextOpen - cs.closeAt;
             fIn = _ramp(now_, cs.closeAt > PRE_CLOSE_WINDOW ? cs.closeAt - PRE_CLOSE_WINDOW : 0);
@@ -229,13 +229,13 @@ contract VigilRiskEngine is IVigilRiskEngine {
                 fIn = _ramp(now_, cs.closeAt - PRE_CLOSE_WINDOW);
             }
         }
-        // 2) pengetatan efektif di atas kalender (halt lebih awal, open lebih lambat, rezim lebih ketat)
+        // 2) effective tightening above the calendar (earlier halt, later open, tighter regime)
         bool tighter = inClosure && (cs.cal == Regime.MARKET || closeAt != cs.closeAt || nextOpen != cs.nextOpen);
         bool haltAhead = !inClosure && closeAt > now_ && closeAt < cs.closeAt && closeAt - now_ <= PRE_CLOSE_WINDOW;
         if (tighter || haltAhead) {
             Lt = nextOpen - closeAt;
             uint64 start = closeAt > PRE_CLOSE_WINDOW ? closeAt - PRE_CLOSE_WINDOW : 0;
-            if (tightSince > start) start = tightSince; // halt keeper / rule 3 di-ramp sejak mulai berlaku
+            if (tightSince > start) start = tightSince; // a keeper halt / rule 3 ramps from the moment it takes effect
             fTight = _ramp(now_, start);
         }
         lastOpen;
@@ -259,7 +259,7 @@ contract VigilRiskEngine is IVigilRiskEngine {
     ) internal pure returns (uint256 h) {
         if (fIn != 0) h = closureHaircutBps(sf, L, mult) * fIn / WAD;
         if (fTight != 0) {
-            // pengetatan = tambahan ter-ramp DI ATAS level kalender: h_kal + (H_ketat − h_kal)·f
+            // tightening = a ramped increment ON TOP OF the calendar level: h_cal + (H_tight − h_cal)·f
             uint256 ht = closureHaircutBps(sf, Lt, mult);
             if (ht > h) h += (ht - h) * fTight / WAD;
         }
@@ -269,7 +269,7 @@ contract VigilRiskEngine is IVigilRiskEngine {
         }
     }
 
-    /// Target tanpa ramp: H(L) bila sedang tertutup atau dalam preCloseWindow, selain itu 0.
+    /// The unramped target: H(L) while closed or inside preCloseWindow, otherwise 0.
     function targetHaircutBps(address asset) external view returns (uint16) {
         Surface memory sf = surfaces[asset];
         if (sf.updatedAt == 0) return 0;
@@ -278,7 +278,7 @@ contract VigilRiskEngine is IVigilRiskEngine {
         return uint16(closureHaircutBps(sf, nextOpen - closeAt, eventMultBpsAt(asset, uint64(block.timestamp))));
     }
 
-    /// Haircut penuh yang dilaporkan (sudah ter-ramp terhadap kalender, event, dan perubahan surface).
+    /// The reported haircut (already ramped against the calendar, events and surface changes).
     function haircutBps(address asset) external view returns (uint16) {
         Surface memory sf = surfaces[asset];
         if (sf.updatedAt == 0) return 0;
@@ -290,13 +290,13 @@ contract VigilRiskEngine is IVigilRiskEngine {
         if (rs != 0 && block.timestamp - rs < RAMP_SECONDS) {
             uint256 hp = _shapedHaircut(prevSurfaces[asset], fIn, L, fTight, Lt, fOut, Lprev, mult);
             uint256 p = (block.timestamp - rs) * WAD / RAMP_SECONDS;
-            h = hp + (h * p) / WAD - (hp * p) / WAD; // lerp tanpa underflow
+            h = hp + (h * p) / WAD - (hp * p) / WAD; // lerp without underflow
         }
         if (h > GLOBAL_H_MAX) h = GLOBAL_H_MAX;
         return uint16(h);
     }
 
-    // ───────────────────────── premi ─────────────────────────
+    // ───────────────────────── premium ─────────────────────────
 
     function _interp(uint256 x, uint256 x0, uint256 x1, uint256 y0, uint256 y1) internal pure returns (uint256) {
         if (x <= x0) return y0;

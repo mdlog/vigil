@@ -17,14 +17,14 @@ import {MockFeed} from "../src/mocks/MockFeed.sol";
 import {MockUSDG} from "../src/mocks/MockUSDG.sol";
 import {Regime} from "../src/interfaces/IVigil.sol";
 
-/// End-to-end di deployment nyata (testnet 46630 atau fork Anvil-nya): lima aktor menjalankan siklus penuh
-/// supply → borrow → member → backstop → attestation keeper → soft unwind → gap Senin (replay 5 Agu 2024)
-/// → liquidateWithCover, dengan `require` di tiap fase — bila satu gagal saat simulasi, tidak ada yang di-broadcast.
+/// End-to-end against a real deployment (testnet 46630 or an Anvil fork of it): five actors run the full cycle
+/// supply → borrow → member → backstop → keeper attestation → soft unwind → Monday gap (replay of 5 Aug 2024)
+/// → liquidateWithCover, with a `require` in every phase — if one fails in simulation, nothing is broadcast.
 ///
-/// Env: PRIVATE_KEY (deployer = keeperSigner, dari .env), E2E_MANIFEST (default deployments/robinhood-testnet-46630.json),
-///      E2E_FEED_DROP_BPS (default 1418 = −14,18 %, NVDA 5 Agu 2024).
+/// Env: PRIVATE_KEY (deployer = keeperSigner, from .env), E2E_MANIFEST (default deployments/robinhood-testnet-46630.json),
+///      E2E_FEED_DROP_BPS (default 1418 = −14.18 %, NVDA 5 Aug 2024).
 ///   forge script script/E2E.s.sol --rpc-url robinhood_testnet --broadcast --slow --gas-estimate-multiplier 200 -vv
-/// (multiplier: akrual index bergantung waktu blok nyata, yang lebih lambat dari timestamp simulasi)
+/// (the multiplier: index accrual depends on real block time, which runs later than the simulation timestamp)
 contract E2E is Script {
     using MarketParamsLib for MarketParams;
     using MorphoBalancesLib for IMorpho;
@@ -56,11 +56,11 @@ contract E2E is Script {
         address addr;
     }
 
-    Actor alice; // pemasok USDG
-    Actor bob; // member yang di-unwind sebelum gap
-    Actor erin; // member max-LTV yang tidak di-unwind → cover
-    Actor carol; // LP backstop
-    Actor dave; // unwinder & likuidator
+    Actor alice; // USDG supplier
+    Actor bob; // member unwound before the gap
+    Actor erin; // max-LTV member who is not unwound → cover
+    Actor carol; // backstop LP
+    Actor dave; // unwinder & liquidator
 
     struct Result {
         uint256 bobDebt0;
@@ -96,7 +96,7 @@ contract E2E is Script {
         _actors();
         uint256 dropBps = vm.envOr("E2E_FEED_DROP_BPS", uint256(1418));
 
-        // ── fase 0: dana gas untuk aktor sementara ───────────────────────────────────────────────
+        // ── phase 0: gas money for the throwaway actors ──────────────────────────────────────────
         console2.log("[E2E] phase 0 fund: deployer %s funds 5 ephemeral actors", deployer);
         vm.startBroadcast(deployerPk);
         payable(alice.addr).transfer(GAS_MONEY);
@@ -106,7 +106,7 @@ contract E2E is Script {
         payable(dave.addr).transfer(GAS_MONEY);
         vm.stopBroadcast();
 
-        // ── fase 1: supply ───────────────────────────────────────────────────────────────────────
+        // ── phase 1: supply ──────────────────────────────────────────────────────────────────────
         r.supplyBefore = _market().totalSupplyAssets;
         vm.startBroadcast(alice.pk);
         usdg.mint(alice.addr, SUPPLY);
@@ -116,7 +116,7 @@ contract E2E is Script {
         require(_market().totalSupplyAssets >= r.supplyBefore + SUPPLY, "supply not credited");
         console2.log("[E2E] phase 1 supply: alice supplied %s USDG", SUPPLY / 1e6);
 
-        // ── fase 2: borrow pada harga oracle ter-haircut ─────────────────────────────────────────
+        // ── phase 2: borrow at the haircut oracle price ──────────────────────────────────────────
         r.priceBefore = oracle.price();
         r.bobDebt0 = _borrow(bob);
         r.erinDebt0 = _borrow(erin);
@@ -130,13 +130,13 @@ contract E2E is Script {
             r.priceBefore / 1e22
         );
 
-        // ── fase 3: keanggotaan Vigil ────────────────────────────────────────────────────────────
+        // ── phase 3: Vigil membership ────────────────────────────────────────────────────────────
         _join(bob);
         _join(erin);
         require(premium.isMember(id, bob.addr) && premium.isMember(id, erin.addr), "membership");
         console2.log("[E2E] phase 3 member: bob and erin authorized PreLiquidation and funded premium escrow");
 
-        // ── fase 4: backstop ─────────────────────────────────────────────────────────────────────
+        // ── phase 4: backstop ────────────────────────────────────────────────────────────────────
         vm.startBroadcast(carol.pk);
         usdg.mint(carol.addr, LP_DEPOSIT);
         usdg.approve(address(backstop), LP_DEPOSIT);
@@ -150,7 +150,7 @@ contract E2E is Script {
             "[E2E] phase 4 backstop: carol deposited %s USDG, requested 10%% exit (7-day cooldown)", LP_DEPOSIT / 1e6
         );
 
-        // ── fase 5: attestation keeper (open ditunda 1 jam) ─────────────────────────────────────
+        // ── phase 5: keeper attestation (open delayed by 1 h) ───────────────────────────────────
         (,, uint64 closeAt, uint64 nextOpen) = session.regimeOf(address(nvda));
         r.closureLenBefore = nextOpen - closeAt;
         VigilSessionOracle.Attestation memory a = VigilSessionOracle.Attestation({
@@ -163,7 +163,7 @@ contract E2E is Script {
         });
         (uint8 v, bytes32 rr, bytes32 ss) = vm.sign(deployerPk, session.hashAttestation(a));
         vm.startBroadcast(deployerPk);
-        session.attest(a, abi.encodePacked(rr, ss, v)); // attest() mempersistenkan index (poke internal) sebelum berlaku
+        session.attest(a, abi.encodePacked(rr, ss, v)); // attest() persists the index (internal poke) before it takes effect
         vm.stopBroadcast();
         (,, closeAt, nextOpen) = session.regimeOf(address(nvda));
         r.closureLenAfter = nextOpen - closeAt;
@@ -174,7 +174,7 @@ contract E2E is Script {
             r.closureLenAfter / 360
         );
 
-        // ── fase 6: soft unwind Bob ke target LTV ────────────────────────────────────────────────
+        // ── phase 6: soft unwind of Bob to the target LTV ────────────────────────────────────────
         (bool ok, uint256 maxRepay) = preLiq.isUnwindable(id, bob.addr);
         require(ok && maxRepay > 0, "bob not unwindable");
         r.unwindDiscountBps = preLiq.currentDiscountBps(id, bob.addr);
@@ -192,7 +192,7 @@ contract E2E is Script {
             r.bobLtvAfterUnwind
         );
 
-        // ── fase 7: gap Senin — replay 5 Agu 2024 ────────────────────────────────────────────────
+        // ── phase 7: Monday gap — replay of 5 Aug 2024 ───────────────────────────────────────────
         int256 gapped = FEED_BASE * int256(10_000 - dropBps) / 10_000;
         vm.startBroadcast(dave.pk);
         feed.set(gapped);
@@ -209,7 +209,7 @@ contract E2E is Script {
             r.priceAfter / 1e22
         );
 
-        // ── fase 8: likuidasi dengan cover ───────────────────────────────────────────────────────
+        // ── phase 8: liquidation with cover ──────────────────────────────────────────────────────
         vm.startBroadcast(dave.pk);
         usdg.approve(address(lossReporter), type(uint256).max);
         (,, r.erinCovered) = lossReporter.liquidateWithCover(id, erin.addr, "");
@@ -221,7 +221,7 @@ contract E2E is Script {
         require(r.erinCovered > 0, "erin should be covered");
         require(r.bobCovered == 0, "bob should not need cover");
         require(r.supplyAfter >= r.supplyBefore + SUPPLY, "suppliers lost assets");
-        // backstop membayar cover + bounty likuidator (COVER_BOUNTY_BPS = 10) dan menerima premi member di antaranya
+        // the backstop pays the cover + the liquidator bounty (COVER_BOUNTY_BPS = 10) and receives member premiums in between
         uint256 paid = r.totalCoveredAfter - r.totalCoveredBefore;
         require(paid >= r.erinCovered && paid <= r.erinCovered + r.erinCovered / 1_000 + 1, "backstop accounting");
         require(r.backstopAfter < r.backstopBefore, "backstop did not pay");
@@ -232,7 +232,7 @@ contract E2E is Script {
             r.bobCovered
         );
 
-        // ── fase 9: pulihkan feed ────────────────────────────────────────────────────────────────
+        // ── phase 9: restore the feed ────────────────────────────────────────────────────────────
         vm.startBroadcast(dave.pk);
         feed.set(FEED_BASE);
         vm.stopBroadcast();
@@ -270,7 +270,7 @@ contract E2E is Script {
         dave = _actor("dave");
     }
 
-    /// Wallet sekali pakai per run (label + timestamp); kunci tidak pernah dicetak.
+    /// A throwaway wallet per run (label + timestamp); the key is never printed.
     function _actor(string memory name) internal returns (Actor memory a) {
         uint256 pk = uint256(keccak256(abi.encodePacked("vigil-e2e", name, block.timestamp, block.number)));
         a = Actor({name: name, pk: pk, addr: vm.addr(pk)});

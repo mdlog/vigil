@@ -11,19 +11,19 @@ import {IAggregatorV3} from "../../src/interfaces/IAggregatorV3.sol";
 import {IStockToken} from "../../src/interfaces/IStockToken.sol";
 import {Regime} from "../../src/interfaces/IVigil.sol";
 
-/// Vigil di atas dependensi ASLI Robinhood Chain mainnet (4663) pada fork lokal: Morpho Blue, AdaptiveCurveIRM,
-/// USDG (proxy Paxos), stock token NVDA (ERC-8056, uiMultiplier/effectiveAt/oraclePaused), feed Chainlink NVDA/USD
-/// yang beku sejak Jumat 15:55 ET, dan feed USDG/USD. Tidak ada mock kecuali dua suntikan yang disebut eksplisit:
-/// harga gap Senin (feed asli tidak bisa digerakkan) dan pembaruan feed USDG/USD setelah `vm.warp` (di chain nyata
-/// feed itu terus diperbarui; di fork waktu maju tanpa oracle). Semua saldo dibuat dengan `deal` di salinan lokal.
+/// Vigil on top of the REAL Robinhood Chain mainnet (4663) dependencies on a local fork: Morpho Blue, AdaptiveCurveIRM,
+/// USDG (the Paxos proxy), the NVDA stock token (ERC-8056, uiMultiplier/effectiveAt/oraclePaused), the Chainlink
+/// NVDA/USD feed frozen since Friday 15:55 ET, and the USDG/USD feed. No mocks except two explicitly named injections:
+/// the Monday gap price (the real feed cannot be moved) and a USDG/USD feed refresh after `vm.warp` (on the real chain
+/// that feed keeps updating; on the fork time advances without the oracle). All balances are created with `deal` on the local copy.
 ///
 ///   FOUNDRY_FORK_TESTS=1 forge test --match-path test/fork/MainnetFork.t.sol -vv
-/// RPC publik bukan archive (≈ 1 000 blok state): fork dipin ke blok terbaru; state yang sudah diambil di-cache Foundry.
+/// The public RPC is not an archive node (≈ 1,000 blocks of state): the fork is pinned to the latest block; fetched state is cached by Foundry.
 contract MainnetForkTest is Test {
     using MarketParamsLib for MarketParams;
     using MorphoBalancesLib for IMorpho;
 
-    // Alamat asli (PRD §18, diverifikasi on-chain 19 Sep 2026)
+    // Real addresses (PRD §18, verified on-chain 19 Sep 2026)
     address constant MORPHO = 0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010;
     address constant IRM = 0x2BD3d5965B26B51814AC95127B2b80dD6CcC0fa1;
     address constant USDG = 0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168;
@@ -35,7 +35,7 @@ contract MainnetForkTest is Test {
     uint256 constant COLLATERAL = 10e18;
     uint256 constant SUPPLY = 20_000e6;
     uint256 constant LP_DEPOSIT = 5_000e6;
-    uint256 constant DROP_BPS = 1_418; // 5 Agu 2024
+    uint256 constant DROP_BPS = 1_418; // 5 Aug 2024
 
     bool enabled;
     IMorpho morpho = IMorpho(MORPHO);
@@ -83,7 +83,7 @@ contract MainnetForkTest is Test {
         (, answer,, updatedAt,) = IAggregatorV3(FEED).latestRoundData();
     }
 
-    /// Feed USDG/USD asli tidak bergerak saat `vm.warp`; di chain nyata ia diperbarui — suntik nilai asli dengan waktu sekarang.
+    /// The real USDG/USD feed does not move under `vm.warp`; on the real chain it updates — inject the real value with the current time.
     function _freshenQuoteFeed() internal {
         (uint80 r, int256 q,,, uint80 a) = IAggregatorV3(USDG_FEED).latestRoundData();
         vm.mockCall(
@@ -93,7 +93,7 @@ contract MainnetForkTest is Test {
         );
     }
 
-    /// Satu-satunya cara membuat gap di feed asli: suntik jawaban baru dengan `updatedAt` sekarang.
+    /// The only way to create a gap in the real feed: inject a new answer with `updatedAt` = now.
     function _gapFeed(int256 answer) internal {
         (uint80 r,,,, uint80 a) = IAggregatorV3(FEED).latestRoundData();
         vm.mockCall(
@@ -105,7 +105,7 @@ contract MainnetForkTest is Test {
 
     function _open(address user, uint256 ltvWad) internal returns (uint256 debt) {
         deal(NVDA, user, COLLATERAL);
-        uint256 coll = IERC20(NVDA).balanceOf(user); // ERC-8056: saldo tampil × uiMultiplier
+        uint256 coll = IERC20(NVDA).balanceOf(user); // ERC-8056: displayed balance × uiMultiplier
         debt = coll * d.oracle.price() / 1e36 * ltvWad / 1e18;
         vm.startPrank(user);
         IERC20(NVDA).approve(MORPHO, coll);
@@ -134,8 +134,8 @@ contract MainnetForkTest is Test {
 
     // ───────────────────────── tests ─────────────────────────
 
-    /// Feed Chainlink asli beku sejak close terakhir: itu keadaan NORMAL, oracle tetap memberi harga ter-haircut,
-    /// dan `unhaircutPrice` = feed NVDA/USD ÷ feed USDG/USD pada skala 1e36 (18 → 6 desimal).
+    /// The real Chainlink feed is frozen since the last close: that is the NORMAL state, the oracle still prices with
+    /// the haircut, and `unhaircutPrice` = NVDA/USD feed ÷ USDG/USD feed at the 1e36 scale (18 → 6 decimals).
     function test_fork_frozenRealFeedIsUsableAndHaircutApplies() public {
         vm.skip(!enabled);
         (int256 answer, uint256 updatedAt) = _feed();
@@ -144,7 +144,7 @@ contract MainnetForkTest is Test {
         assertTrue(d.session.feedIsUsable(NVDA), "frozen feed must be usable");
         uint256 raw = d.oracle.unhaircutPrice();
         (, int256 q,,,) = IAggregatorV3(USDG_FEED).latestRoundData();
-        uint256 expected = uint256(answer) * 1e16 * 1e8 / uint256(q); // feed 8d → 1e36 skala 18/6, dibagi USDG/USD
+        uint256 expected = uint256(answer) * 1e16 * 1e8 / uint256(q); // 8d feed → 1e36 at the 18/6 scale, divided by USDG/USD
         assertApproxEqRel(raw, expected, 1e14, "unhaircut price follows the real feeds");
         uint256 h = d.oracle.currentHaircutBps();
         assertLe(h, 500);
@@ -155,8 +155,8 @@ contract MainnetForkTest is Test {
         }
     }
 
-    /// Token ERC-8056 asli: uiMultiplier != 1 (dividen), effectiveAt lampau, oraclePaused false → bukan CORP_ACTION;
-    /// oraclePaused() dari token (disuntik) adalah satu-satunya jalur yang membuat price() revert.
+    /// The real ERC-8056 token: uiMultiplier != 1 (a dividend), effectiveAt in the past, oraclePaused false → not CORP_ACTION;
+    /// the token's oraclePaused() (injected) is the only path that makes price() revert.
     function test_fork_realStockTokenFlagsDriveCorpAction() public {
         vm.skip(!enabled);
         IStockToken t = IStockToken(NVDA);
@@ -165,7 +165,7 @@ contract MainnetForkTest is Test {
         (Regime eff,,,) = d.session.regimeOf(NVDA);
         assertTrue(eff != Regime.CORP_ACTION);
         d.session.poke(NVDA);
-        d.oracle.price(); // tidak revert
+        d.oracle.price(); // does not revert
         vm.mockCall(NVDA, abi.encodeWithSelector(IStockToken.oraclePaused.selector), abi.encode(true));
         (eff,,,) = d.session.regimeOf(NVDA);
         assertEq(uint8(eff), uint8(Regime.CORP_ACTION));
@@ -186,9 +186,9 @@ contract MainnetForkTest is Test {
 
     Cycle c;
 
-    /// Siklus penuh di atas Morpho + IRM + USDG + NVDA asli: posisi dibuka pada harga ter-haircut, Bob di-unwind
-    /// sebelum open, lalu Senin 09:30 ET feed asli masih beku (grace 6 jam) → gap −14,18 % disuntik → Erin dicover
-    /// backstop, Bob tidak butuh cover, pemasok utuh.
+    /// The full cycle on the real Morpho + IRM + USDG + NVDA: positions opened at the haircut price, Bob unwound
+    /// before the open, then Monday 09:30 ET with the real feed still frozen (6 h grace) → a −14.18 % gap injected →
+    /// Erin covered by the backstop, Bob needs no cover, the suppliers untouched.
     function test_fork_weekendGapCycleOnRealMorpho() public {
         vm.skip(!enabled);
         (, Regime cal_,, uint64 nextOpen) = d.session.regimeOf(NVDA);
@@ -223,7 +223,7 @@ contract MainnetForkTest is Test {
         vm.stopPrank();
     }
 
-    /// Soft unwind Bob selama penutupan (jendela aktif, diskon maksimum).
+    /// Soft unwind of Bob during the closure (window active, maximum discount).
     function _unwindBob() internal {
         (bool ok, uint256 maxRepay) = d.preLiq.isUnwindable(id, bob);
         assertTrue(ok && maxRepay > 0, "unwindable");
@@ -238,9 +238,9 @@ contract MainnetForkTest is Test {
         assertLt(c.bobLtvAfterUnwind, 8_000);
     }
 
-    /// Senin 09:30 ET: kalender MARKET, feed asli masih Jumat → dalam grace 6 jam. Haircut akhir pekan di-ramp-OUT
-    /// selama satu jam setelah open (bukan dilepas seketika): +10 menit engine ≈ 977·(50/60) > cap → oracle 500;
-    /// +45 menit engine ≈ 977·(15/60) ≈ 244 bps — gap Senin pagi datang saat jaminan masih terdiskon.
+    /// Monday 09:30 ET: calendar MARKET, the real feed still on Friday → inside the 6 h grace. The weekend haircut
+    /// ramps OUT over the hour after the open (not released at once): +10 min engine ≈ 977·(50/60) > cap → oracle 500;
+    /// +45 min engine ≈ 977·(15/60) ≈ 244 bps — a Monday-morning gap lands while the collateral is still discounted.
     function _mondayOpen(uint64 nextOpen) internal {
         vm.warp(uint256(nextOpen) + 10 minutes);
         _freshenQuoteFeed();

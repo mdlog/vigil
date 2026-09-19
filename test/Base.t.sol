@@ -22,12 +22,12 @@ import {MockIRM} from "../src/mocks/MockIRM.sol";
 import {Regime} from "../src/interfaces/IVigil.sol";
 import {CalendarFixture} from "./CalendarFixture.sol";
 
-/// Harness: Morpho Blue asli (dari source, Rencana B1) + Market A (kontrol) dan Market B (Vigil) untuk NVDA/USDG.
+/// Harness: the real Morpho Blue (from source, Plan B1) + Market A (control) and Market B (Vigil) for NVDA/USDG.
 abstract contract Base is Test {
     using MarketParamsLib for MarketParams;
     using MorphoBalancesLib for IMorpho;
 
-    // Jangkar waktu (2024-08-02 Jumat, ET) — dipakai replay historis.
+    // Time anchor (Friday 2024-08-02, ET) — used by the historical replays.
     uint64 constant FRI_1400 = 1722621600;
     uint64 constant FRI_1430 = 1722623400;
     uint64 constant FRI_1500 = 1722625200;
@@ -43,7 +43,7 @@ abstract contract Base is Test {
 
     uint256 constant LLTV = 0.86e18;
     uint16 constant CAP_BPS = 500;
-    int256 constant P0 = 120e8; // $120, 8 desimal
+    int256 constant P0 = 120e8; // $120, 8 decimals
 
     IMorpho morpho;
     MockIRM irm;
@@ -60,7 +60,7 @@ abstract contract Base is Test {
     MockStockToken nvda;
     MockFeed feed;
     MockUSDG usdg;
-    MarketParams mA; // kontrol
+    MarketParams mA; // control
     MarketParams mB; // Vigil
     Id idA;
     Id idB;
@@ -70,8 +70,8 @@ abstract contract Base is Test {
     uint256 keeperPk = 0xBEEF;
     address keeper;
     address supplier = address(0x5011);
-    address alice = address(0xA1); // peminjam member
-    address bob = address(0xB0B); // peminjam non-member
+    address alice = address(0xA1); // member borrower
+    address bob = address(0xB0B); // non-member borrower
     address liquidator = address(0x11C);
 
     function setUp() public virtual {
@@ -80,7 +80,7 @@ abstract contract Base is Test {
         usdg = new MockUSDG();
         nvda = new MockStockToken("NVIDIA (mock)", "NVDA");
         feed = new MockFeed(8, P0);
-        irm = new MockIRM(1585489599); // ≈ 5%/tahun per detik (WAD)
+        irm = new MockIRM(1585489599); // ≈ 5 %/year, per second (WAD)
         morpho = IMorpho(address(new Morpho(address(this))));
         morpho.enableIrm(address(irm));
         morpho.enableLltv(LLTV);
@@ -96,14 +96,14 @@ abstract contract Base is Test {
         vm.stopPrank();
         vm.startPrank(calibrator);
         risk.setSurface(address(nvda), VigilRiskEngine.Surface(0.016e18, 30_000, 50, 2_500, 0));
-        // π_ref dari calibrator/report.md (NVDA, t-fit/empiris, per detik atas utang, WAD):
-        // malam 0,06 bp/63.000 s ≈ 9,5e7; akhir pekan ~3,5 bp/235.800 s ≈ 1,48e9; panjang ~4 bp/322.200 s ≈ 1,24e9
+        // π_ref from calibrator/report.md (NVDA, t-fit/empirical, per second over the debt, WAD):
+        // night 0.06 bp/63,000 s ≈ 9.5e7; weekend ~3.5 bp/235,800 s ≈ 1.48e9; long ~4 bp/322,200 s ≈ 1.24e9
         risk.setPremiumTables(
             address(nvda),
             VigilRiskEngine.PremiumTable({
                 lBucket: [uint64(63_000), 149_400, 235_800, 322_200],
                 rateNoEvent: [uint128(9.5e7), 8e8, 1.48e9, 1.24e9],
-                rateEvent: [uint128(2.7e10), 2.7e10, 2.7e10, 2.7e10] // earnings ≈17 bp/63.000 s
+                rateEvent: [uint128(2.7e10), 2.7e10, 2.7e10, 2.7e10] // earnings ≈ 17 bp/63,000 s
             }),
             VigilRiskEngine.BufferTable({
                 bBps: [uint16(400), 600, 800, 1_023, 1_500, 2_000],
@@ -121,7 +121,7 @@ abstract contract Base is Test {
         morpho.createMarket(mA);
         morpho.createMarket(mB);
 
-        // sisi ekonomi Vigil (hanya Market B)
+        // the Vigil economics (Market B only)
         backstop = new VigilBackstop(usdg, cal, guardian);
         premium = new VigilPremium(morpho, so, risk, usdg, address(backstop), guardian);
         preLiq = new VigilPreLiquidation(morpho, so, risk, premium, guardian);
@@ -129,19 +129,19 @@ abstract contract Base is Test {
         vm.startPrank(guardian);
         premium.setPreLiquidation(address(preLiq));
         premium.registerMarket(mB);
-        preLiq.registerMarket(mB, 0.76e18); // targetLtv = LLTV − 10%
+        preLiq.registerMarket(mB, 0.76e18); // targetLtv = LLTV − 10 %
         backstop.setLossReporter(address(lossReporter));
         backstop.setCoverageCap(idB, 500_000e6);
         lossReporter.registerMarket(mB);
         vm.stopPrank();
-        // underwriter mendanai backstop
+        // the underwriter funds the backstop
         usdg.mint(underwriter, 200_000e6);
         vm.startPrank(underwriter);
         usdg.approve(address(backstop), type(uint256).max);
         backstop.deposit(200_000e6, underwriter);
         vm.stopPrank();
 
-        // likuiditas pemasok di kedua pasar
+        // supplier liquidity in both markets
         usdg.mint(supplier, 3_000_000e6);
         vm.startPrank(supplier);
         usdg.approve(address(morpho), type(uint256).max);
@@ -150,15 +150,15 @@ abstract contract Base is Test {
         vm.stopPrank();
     }
 
-    // ── helper ──
+    // ── helpers ──
 
-    /// Setor jaminan dan pinjam sampai LTV target (WAD) pada harga feed saat ini.
+    /// Deposit collateral and borrow up to the target LTV (WAD) at the current feed price.
     function _open(MarketParams memory m, address user, uint256 collateral, uint256 ltvWad)
         internal
         returns (uint256 debt)
     {
         nvda.mint(user, collateral);
-        uint256 px = uint256(feed.answer()) * 1e16; // skala 1e36 (stock 18, usdg 6, feed 8)
+        uint256 px = uint256(feed.answer()) * 1e16; // 1e36 scale (stock 18, usdg 6, feed 8)
         debt = collateral * px / 1e36 * ltvWad / 1e18;
         vm.startPrank(user);
         nvda.approve(address(morpho), type(uint256).max);
@@ -167,14 +167,14 @@ abstract contract Base is Test {
         vm.stopPrank();
     }
 
-    /// Kejar index premi setelah lompatan waktu besar (keeper harian akan melakukan ini di produksi).
+    /// Catch the premium index up after a large time jump (a daily keeper does this in production).
     function _catchUp() internal {
         for (uint256 i; i < 32 && so.lastPokeOf(address(nvda)) + 1 days < block.timestamp; ++i) {
             so.poke(address(nvda));
         }
     }
 
-    /// Opt-in member: escrow premi + otorisasi soft unwind.
+    /// Member opt-in: premium escrow + soft-unwind authorization.
     function _join(address user, uint256 escrowAmount) internal {
         usdg.mint(user, escrowAmount);
         vm.startPrank(user);
