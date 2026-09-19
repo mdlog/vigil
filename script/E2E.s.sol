@@ -13,6 +13,7 @@ import {VigilBackstop} from "../src/VigilBackstop.sol";
 import {VigilPreLiquidation} from "../src/VigilPreLiquidation.sol";
 import {VigilLossReporter} from "../src/VigilLossReporter.sol";
 import {MockStockToken} from "../src/mocks/MockStockToken.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {MockFeed} from "../src/mocks/MockFeed.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Regime} from "../src/interfaces/IVigil.sol";
@@ -33,15 +34,15 @@ contract E2E is Script {
     using MarketParamsLib for MarketParams;
     using MorphoBalancesLib for IMorpho;
 
-    uint256 constant SUPPLY = 100e6;
-    uint256 constant COLLATERAL = 0.25e18;
+    uint256 constant SUPPLY = 120e6;
+    uint256 constant COLLATERAL = 0.15e18; // per member: ≈ 55 USDG of TSLA at 364, ≈ 44.6 USDG borrowed at the haircut price
     uint256 constant LTV_WAD = 0.859e18;
     uint256 constant LP_DEPOSIT = 50e6;
-    uint256 constant LIQUIDATOR_USDG = 55e6; // unwind repay ≈ 7.7 + both liquidations ≈ 40 USDG
-    uint256 constant ESCROW_FUND = 1e6; // per member; the 7-day reserve on a ~25 USDG debt is well under 0.1 USDG
-    uint256 constant USDG_NEEDED = SUPPLY + LP_DEPOSIT + LIQUIDATOR_USDG + 2 * ESCROW_FUND; // 207 USDG
+    uint256 constant LIQUIDATOR_USDG = 95e6; // unwind repay ≈ 14 + both liquidations ≈ 75 USDG
+    uint256 constant ESCROW_FUND = 1e6; // per member; the 7-day reserve on a ~45 USDG debt is well under 0.1 USDG
+    uint256 constant USDG_NEEDED = SUPPLY + LP_DEPOSIT + LIQUIDATOR_USDG + 2 * ESCROW_FUND; // 267 USDG
     uint256 constant GAS_MONEY = 0.0001 ether;
-    int256 constant FEED_BASE = 120e8;
+    int256 feedBase; // the feed's answer at the start of the run; restored in phase 9
 
     IMorpho morpho;
     VigilSessionOracle session;
@@ -50,7 +51,9 @@ contract E2E is Script {
     VigilBackstop backstop;
     VigilPreLiquidation preLiq;
     VigilLossReporter lossReporter;
-    MockStockToken nvda;
+    IERC20 stock; // the collateral: Robinhood's testnet stock token (real, transferred from the deployer) or a mock (minted)
+    bool realStock;
+    string symbol;
     MockFeed feed;
     IERC20 usdg;
     MarketParams market;
@@ -100,10 +103,16 @@ contract E2E is Script {
         address deployer = vm.addr(deployerPk);
         _load();
         _actors();
-        uint256 dropBps = vm.envOr("E2E_FEED_DROP_BPS", uint256(1418));
+        // the ticker's worst weekend gap in calibrator/report_full.md — both fell on Monday 5 Aug 2024
+        uint256 defaultDrop = keccak256(bytes(symbol)) == keccak256("TSLA") ? 1081 : 1418;
+        uint256 dropBps = vm.envOr("E2E_FEED_DROP_BPS", defaultDrop);
 
         // ── phase 0: gas money and USDG for the throwaway actors ─────────────────────────────────
         require(usdg.balanceOf(deployer) >= USDG_NEEDED, "deployer needs USDG_NEEDED (faucet.paxos.com)");
+        if (realStock) {
+            require(stock.balanceOf(deployer) >= 2 * COLLATERAL, "deployer needs the collateral (Robinhood faucet)");
+        }
+        console2.log("[E2E] feed base %s cents", uint256(feedBase) / 1e6);
         console2.log(
             "[E2E] phase 0 fund: deployer %s funds 5 ephemeral actors with gas and %s USDG", deployer, USDG_NEEDED / 1e6
         );
@@ -118,6 +127,10 @@ contract E2E is Script {
         usdg.transfer(erin.addr, ESCROW_FUND);
         usdg.transfer(carol.addr, LP_DEPOSIT);
         usdg.transfer(dave.addr, LIQUIDATOR_USDG);
+        if (realStock) {
+            stock.transfer(bob.addr, COLLATERAL);
+            stock.transfer(erin.addr, COLLATERAL);
+        }
         vm.stopBroadcast();
 
         // ── phase 1: supply ──────────────────────────────────────────────────────────────────────
@@ -142,7 +155,7 @@ contract E2E is Script {
             r.erinDebt0,
             r.priceBefore / 1e22
         );
-        console2.log("[E2E] phase 2 collateral: %s NVDA (18d) per member", COLLATERAL);
+        console2.log("[E2E] collateral %s %s (18d) per member", COLLATERAL, symbol);
 
         // ── phase 3: Vigil membership ────────────────────────────────────────────────────────────
         _join(bob);
@@ -164,10 +177,10 @@ contract E2E is Script {
         );
 
         // ── phase 5: keeper attestation (open delayed by 1 h) ───────────────────────────────────
-        (,, uint64 closeAt, uint64 nextOpen) = session.regimeOf(address(nvda));
+        (,, uint64 closeAt, uint64 nextOpen) = session.regimeOf(address(stock));
         r.closureLenBefore = nextOpen - closeAt;
         VigilSessionOracle.Attestation memory a = VigilSessionOracle.Attestation({
-            asset: address(nvda),
+            asset: address(stock),
             regime: uint8(Regime.CLOSED),
             closeAt: closeAt,
             nextOpen: nextOpen + 1 hours,
@@ -178,7 +191,7 @@ contract E2E is Script {
         vm.startBroadcast(deployerPk);
         session.attest(a, abi.encodePacked(rr, ss, v)); // attest() persists the index (internal poke) before it takes effect
         vm.stopBroadcast();
-        (,, closeAt, nextOpen) = session.regimeOf(address(nvda));
+        (,, closeAt, nextOpen) = session.regimeOf(address(stock));
         r.closureLenAfter = nextOpen - closeAt;
         require(r.closureLenAfter == r.closureLenBefore + 1 hours, "attestation not applied");
         console2.log(
@@ -205,7 +218,7 @@ contract E2E is Script {
         );
 
         // ── phase 7: Monday gap — replay of 5 Aug 2024 ───────────────────────────────────────────
-        int256 gapped = FEED_BASE * int256(10_000 - dropBps) / 10_000;
+        int256 gapped = feedBase * int256(10_000 - dropBps) / 10_000;
         vm.startBroadcast(dave.pk);
         feed.set(gapped);
         vm.stopBroadcast();
@@ -246,10 +259,10 @@ contract E2E is Script {
 
         // ── phase 9: restore the feed ────────────────────────────────────────────────────────────
         vm.startBroadcast(dave.pk);
-        feed.set(FEED_BASE);
+        feed.set(feedBase);
         vm.stopBroadcast();
         require(oracle.price() == r.priceBefore, "feed not restored");
-        console2.log("[E2E] phase 9 restore: feed back to 120.00");
+        console2.log("[E2E] phase 9 restore: feed back to %s cents", uint256(feedBase) / 1e6);
         _summary();
     }
 
@@ -265,7 +278,11 @@ contract E2E is Script {
         backstop = VigilBackstop(vm.parseJsonAddress(json, ".contracts.VigilBackstop.address"));
         preLiq = VigilPreLiquidation(vm.parseJsonAddress(json, ".contracts.VigilPreLiquidation.address"));
         lossReporter = VigilLossReporter(vm.parseJsonAddress(json, ".contracts.VigilLossReporter.address"));
-        nvda = MockStockToken(vm.parseJsonAddress(json, ".contracts.MockStockToken.address"));
+        realStock = vm.keyExistsJson(json, ".contracts.StockToken");
+        stock = IERC20(
+            vm.parseJsonAddress(json, realStock ? ".contracts.StockToken.address" : ".contracts.MockStockToken.address")
+        );
+        symbol = IERC20Metadata(address(stock)).symbol();
         feed = MockFeed(vm.parseJsonAddress(json, ".contracts.MockFeed.address"));
         usdg = IERC20(
             vm.parseJsonAddress(
@@ -276,7 +293,8 @@ contract E2E is Script {
         id = Id.wrap(vm.parseJsonBytes32(json, ".market.id"));
         market = morpho.idToMarketParams(id);
         require(market.oracle == address(oracle), "manifest market/oracle mismatch");
-        require(uint256(feed.answer()) == uint256(FEED_BASE), "feed must start at 120.00");
+        feedBase = feed.answer();
+        require(feedBase > 0, "feed has no price");
     }
 
     function _actors() internal {
@@ -302,8 +320,8 @@ contract E2E is Script {
         uint256 px = oracle.price();
         debt = COLLATERAL * px / 1e36 * LTV_WAD / 1e18;
         vm.startBroadcast(who.pk);
-        nvda.mint(who.addr, COLLATERAL);
-        nvda.approve(address(morpho), COLLATERAL);
+        if (!realStock) MockStockToken(address(stock)).mint(who.addr, COLLATERAL);
+        stock.approve(address(morpho), COLLATERAL);
         morpho.supplyCollateral(market, COLLATERAL, who.addr, "");
         morpho.borrow(market, debt, 0, who.addr, who.addr);
         vm.stopBroadcast();

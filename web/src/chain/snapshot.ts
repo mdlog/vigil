@@ -28,7 +28,7 @@ export interface Snapshot {
 
 export type MulticallResult = { status: 'success'; result: unknown } | { status: 'failure'; error: Error };
 
-const asset = () => ADDR.MockStockToken;
+const asset = () => ADDR.StockToken ?? ADDR.MockStockToken;
 
 /** Order is the contract between coreCalls() and decodeCore(). Keep both in sync. */
 export const CORE_ORDER = [

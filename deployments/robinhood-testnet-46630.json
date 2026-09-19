@@ -4,86 +4,88 @@
   "rpc": "https://rpc.testnet.chain.robinhood.com",
   "explorer": "https://explorer.testnet.chain.robinhood.com",
   "deployer": "0x90351bb1e85a17d5f70c62c0cc076d39d897076d",
-  "deployedAt": "2026-09-19T21:53:28Z",
-  "version": 3,
-  "previous": "robinhood-testnet-46630-v2.json",
-  "notes": "v3: the loan token is the real Paxos USDG issued on the testnet (0x7E95\u2026802F); Morpho Blue, the NVDA ERC-8056 token, the NVDA/USD feed and the IRM are still deployed here as mocks because the testnet has no official ones.",
+  "deployedAt": "2026-09-19T22:52:23Z",
+  "version": 4,
+  "previous": "robinhood-testnet-46630-v3.json",
+  "notes": "v4: the collateral is Robinhood's own testnet TSLA stock token and the loan token is Paxos's testnet USDG \u2014 both real; Morpho Blue, the TSLA/USD feed and the IRM are deployed here as mocks because the testnet has no Chainlink feeds or Morpho. Surface: the TSLA calibration (sigma 0.0176).",
   "market": {
-    "id": "0xf44a2ac2f5718ff156ef10a378414d99ae20842c815198f88e3b752dd64d7f1a",
+    "id": "0x165f9db8f5e1d9982a35dfaadb3f944cf747970c8f819f16f10105f5c7eb6e04",
     "loanToken": "USDG (Paxos, testnet)",
-    "collateralToken": "MockStockToken (NVDA)",
+    "collateralToken": "TSLA (Robinhood, testnet)",
+    "collateralSymbol": "TSLA",
     "oracle": "VigilOracle",
     "irm": "MockIRM",
-    "lltv": "0.86e18"
+    "lltv": "0.86e18",
+    "feedInitial": "364.27"
   },
   "contracts": {
     "Morpho": {
-      "address": "0x34089d5061a9f5330b8674c16d44bc76b551feab",
-      "tx": "0xef9afa153ba8a10a0a874abeddd38108b05bc2a157fe6a6a6bc0787a1ee494bb",
-      "block": 121825765
+      "address": "0x99607363652591fff66ba23ef8d91563ca48038b",
+      "tx": "0x1fba5f636c8b81f5a0d9aee28a52a8e34256db83cd806e3ad92e080770eab20a",
+      "block": 121837516
     },
     "MockIRM": {
-      "address": "0x116f2dd1a7999995b1123d8f0541ac25b538dfa9",
-      "tx": "0xbcfb5095b365bb215ea01c9e55154adacca326c94f7327d54206c4931b0f88b3",
-      "block": 121825765
-    },
-    "MockStockToken": {
-      "address": "0xf20f6806d85e65e4375ced9903fb72055307bc29",
-      "tx": "0x9bc6489cf2a5cfdee7d1ad2003c98a3f87a3575f72cd808844a0d14e99a5316a",
-      "block": 121825766
+      "address": "0xc15db6c9c5b7bad92c088e0918d5c720a5c44630",
+      "tx": "0xa8454b2b0c2f6aa02e58253ae9b931126e379a456f12e4e6025fa1599a256449",
+      "block": 121837516
     },
     "MockFeed": {
-      "address": "0x0ae314e93d5722b7d7c6fcaac87d3e139f65e97c",
-      "tx": "0x5e6b5cc76ea73b49123789c4debd013322b8104ad3f82bb7821e97564a2b4f98",
-      "block": 121825766
+      "address": "0x87ae97dd57686e9fbc85ce9d33cc39b6594c49c3",
+      "tx": "0xf1caba4ac273cb538990c95198d0a2ea08d94c6cf4e2dfffb4478e165f21e93a",
+      "block": 121837516
     },
     "VigilCalendar": {
-      "address": "0x2c9586b92e9c5c3c27e899920e11af7f8227e1c1",
-      "tx": "0xdbface15c51a7827373a4bbcf33aedc9f3fa84ba27406d9953b8eeacd3ec36d9",
-      "block": 121825766
+      "address": "0x650e89feda871e194a359d8f2b9eda5fa50de503",
+      "tx": "0x59851106454c7a0a55230182178c41ceb4f9a5be534261264b17d05b7365319d",
+      "block": 121837516
     },
     "VigilSessionOracle": {
-      "address": "0xa86a812b837bab077828312221a85b3505bf1ca7",
-      "tx": "0xfcc56296ef5d0adc72abf80572cc04f272814dba72621eaf25c287e51121835e",
-      "block": 121825766
+      "address": "0xa1cf321c8b4b49c83cb679d821c8315213b0f0b2",
+      "tx": "0x7222c0e4f9d50207403f8f8e39f24697b6a87ab9230cfdcb4e8ddc290263947b",
+      "block": 121837516
     },
     "VigilRiskEngine": {
-      "address": "0x0f0868173f1be1dab8fecccb67acb7a4fe5c493a",
-      "tx": "0xf3f8543f48536d94804a70acd8570c091bcc45d465ab1a18ca7017c98297237e",
-      "block": 121825766
+      "address": "0xaec38a26eacfe9f6c908cdd771866c5b56d87c7a",
+      "tx": "0x3d3e142fa3970735a8ce6126ef691b0038122878c0b0d3a650291528f31e32aa",
+      "block": 121837516
     },
     "VigilOracle": {
-      "address": "0xf2beee25008e34d5bf6cf948f3f1fd1baea1a865",
-      "tx": "0xc1b4ff9a3ee7333043ba8aa70fe9b4b56a19c6a6350ff5f1a5cb8a1054c23daf",
-      "block": 121825766
+      "address": "0x79da01db22808e3a7397b788f171a7647b1bef8f",
+      "tx": "0xff1e321388dde282f2e899503d8e409082e28048d5ebd9c9af50ca1072a2321e",
+      "block": 121837517
     },
     "VigilBackstop": {
-      "address": "0x252674b07187e0aca5ecab2484d9949c0b766516",
-      "tx": "0xb0c276751fc0a59ad0d1fd1a0e1deb191fb3ca46fe4a78a9aa9d4f0076370226",
-      "block": 121825766
+      "address": "0x031d0cab44c9a42e2dacf51e0f3b3dcce72356c9",
+      "tx": "0xae7a31f1df5672846e84d4a1729ad40bac020f69fca5532713eac5fab398366d",
+      "block": 121837517
     },
     "VigilPremium": {
-      "address": "0xa26725997452b60ac72f46f9e242f67b6b80fd81",
-      "tx": "0x59fbd7252077444acf0e3892c89a609604c95c3998deec1fc7f430c7298e8d3c",
-      "block": 121825766
+      "address": "0x416f3716c226c99e5a0296fdda9ba01496348ec9",
+      "tx": "0xabb3c416c08de729a1d2db2b6ae820932d609fdcb92a724032d476d5e812effd",
+      "block": 121837517
     },
     "VigilPreLiquidation": {
-      "address": "0xf58a5e7e24cc346b59bf6169be1841304f8438ea",
-      "tx": "0xa94e260a74b952bed2af46c463e62a5cf2140f33605f33f0f75ee4b0156f3555",
-      "block": 121825767
+      "address": "0xa58609838474a30ea1ebe77d59b6f786abc55978",
+      "tx": "0x83ce1a7ac25127b3fdac6134c3e6e78a2c2b976327f315bdf94839d2d2e56bac",
+      "block": 121837517
     },
     "VigilLossReporter": {
-      "address": "0x53d87458c47e0d7af9eec17e82a5e15fca9eba95",
-      "tx": "0xa36834ac5f8f310ee79cdfb62534efdb23b0468d8eab76b6ce562fff7c5e61b3",
-      "block": 121825767
+      "address": "0xc6e4428fd7cbafbe9f1d2bbca61c44ea984aff16",
+      "tx": "0xc099529536ee3c8b5f464d22900db110c9a1955f242fe675c54c65fc68d23af7",
+      "block": 121837517
     },
     "USDG": {
       "address": "0x7E955252E15c84f5768B83c41a71F9eba181802F",
       "issuer": "Paxos \u2014 Global Dollar (USDG) on Robinhood Chain testnet, 6 decimals, EIP-1967 proxy; 100 USDG per wallet per day from https://faucet.paxos.com/",
       "external": true
+    },
+    "StockToken": {
+      "address": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+      "issuer": "Robinhood \u2014 Tesla (TSLA) stock token on the Robinhood Chain testnet: BeaconProxy of the `Stock` implementation, registered in AccessControlsRegistry 0x1dF3cA0fD30ED5eeb09eB01938f4E9c5196E6Ca5; 5 TSLA per claim from https://faucet.testnet.chain.robinhood.com/",
+      "external": true
     }
   },
-  "transactions": 25,
-  "gasUsed": 27130347,
-  "firstBlock": 121825765
+  "transactions": 24,
+  "gasUsed": 26449381,
+  "firstBlock": 121837516
 }

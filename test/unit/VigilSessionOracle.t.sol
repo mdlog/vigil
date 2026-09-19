@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {VigilCalendar} from "../../src/VigilCalendar.sol";
 import {VigilSessionOracle} from "../../src/VigilSessionOracle.sol";
 import {MockStockToken} from "../../src/mocks/MockStockToken.sol";
+import {MockStockTokenLegacy} from "../../src/mocks/MockStockTokenLegacy.sol";
 import {MockFeed} from "../../src/mocks/MockFeed.sol";
 import {MockUSDG} from "../../src/mocks/MockUSDG.sol";
 import {Regime, Session, IVigilRiskEngine} from "../../src/interfaces/IVigil.sol";
@@ -351,5 +352,35 @@ contract VigilSessionOracleTest is Test {
         assertEq(usdg.balanceOf(address(this)), 1e6);
         so.poke(address(nvda)); // < 15 minutes since the last poke → no bounty
         assertEq(usdg.balanceOf(address(this)), 1e6);
+    }
+
+    // ── tokens without oraclePaused() (Robinhood's testnet stock tokens) ──
+    function test_registerAsset_probesOraclePausedSupport() public {
+        assertTrue(so.hasOraclePaused(address(nvda)));
+        MockStockTokenLegacy tsla = new MockStockTokenLegacy("Tesla", "TSLA");
+        MockFeed tslaFeed = new MockFeed(8, 364e8);
+        vm.prank(guardian);
+        so.registerAsset(
+            address(tsla),
+            VigilSessionOracle.AssetConfig({
+                feed: address(tslaFeed),
+                marketStaleSeconds: 4 hours,
+                hardStaleMult: 3,
+                corpActionPre: 1 hours,
+                corpActionPost: 1 hours,
+                corpActionJumpBps: 100,
+                registered: false
+            })
+        );
+        assertFalse(so.hasOraclePaused(address(tsla)));
+        // rule 1 cannot be expressed by the token, so the calendar regime comes through — no revert
+        vm.warp(FRI_1500);
+        (Regime e,,,) = so.regimeOf(address(tsla));
+        assertEq(uint8(e), uint8(Regime.MARKET));
+        // rule 2 (effectiveAt window with a large multiplier jump) still applies
+        uint256 eff = FRI_1500 + 30 minutes;
+        tsla.scheduleMultiplier(2e18, eff);
+        (e,,,) = so.regimeOf(address(tsla));
+        assertEq(uint8(e), uint8(Regime.CORP_ACTION));
     }
 }

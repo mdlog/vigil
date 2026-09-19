@@ -26,8 +26,11 @@ import {MockIRM} from "../src/mocks/MockIRM.sol";
 ///   MORPHO        Morpho Blue (Robinhood mainnet 0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010); empty → deploy our own (Plan B1)
 ///   IRM           mainnet AdaptiveCurveIRM 0x2BD3d5965B26B51814AC95127B2b80dD6CcC0fa1; empty → MockIRM
 ///   USDG          mainnet 0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168; empty → MockUSDG
-///   STOCK_TOKEN   mainnet NVDA 0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC; empty → MockStockToken
+///   STOCK_TOKEN   mainnet NVDA 0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC (testnet: Robinhood TSLA
+///                 0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E); empty → MockStockToken
+///   SYMBOL        ticker of the collateral, picks the calibrated surface (NVDA default, TSLA, AAPL)
 ///   FEED          mainnet Chainlink NVDA/USD 0x379EC4f7C378F34a1B47E4F3cbeBCbAC3E8E9F15; empty → MockFeed
+///   FEED_INITIAL  initial answer of the MockFeed, 8 decimals (default 120e8)
 ///   USDG_FEED     mainnet USDG/USD 0x61B7e5650328764B076A108EFF5fa7282a1B9aD2; empty → $1 assumed
 ///   GUARDIAN / CALIBRATOR / KEEPER_SIGNER  default = deployer
 ///   LLTV (0.86e18), TARGET_LTV (0.76e18), CAP_BPS (500), COVERAGE_CAP (100000e6)
@@ -45,6 +48,7 @@ contract Deploy is Script {
         uint256 lltv;
         address usdg;
         address stock;
+        string symbol;
         address feed;
         address usdgFeed;
         address guardian;
@@ -98,10 +102,11 @@ contract Deploy is Script {
         }
         c.usdg = vm.envOr("USDG", address(0));
         if (c.usdg == address(0)) c.usdg = address(new MockUSDG());
+        c.symbol = vm.envOr("SYMBOL", string("NVDA"));
         c.stock = vm.envOr("STOCK_TOKEN", address(0));
         if (c.stock == address(0)) c.stock = address(new MockStockToken("NVIDIA (mock)", "NVDA"));
         c.feed = vm.envOr("FEED", address(0));
-        if (c.feed == address(0)) c.feed = address(new MockFeed(8, 120e8));
+        if (c.feed == address(0)) c.feed = address(new MockFeed(8, int256(vm.envOr("FEED_INITIAL", uint256(120e8)))));
         c.usdgFeed = vm.envOr("USDG_FEED", address(0));
         c.guardian = vm.envOr("GUARDIAN", c.deployer);
         c.calibrator = vm.envOr("CALIBRATOR", c.deployer);
@@ -117,7 +122,7 @@ contract Deploy is Script {
         risk = new VigilRiskEngine(session, c.deployer, c.deployer);
         session.setRiskEngine(risk);
         session.registerAsset(c.stock, VigilParams.assetConfig(c.feed));
-        risk.setSurface(c.stock, VigilParams.surface());
+        risk.setSurface(c.stock, VigilParams.surfaceFor(c.symbol));
         risk.setPremiumTables(c.stock, VigilParams.premiumTable(), VigilParams.bufferTable());
         oracle = new VigilOracle(c.stock, session, risk, c.usdgFeed, address(0), 0, 2 days, 18, 6, c.capBps);
         market = MarketParams(c.usdg, c.stock, address(oracle), c.irm, c.lltv);
@@ -149,6 +154,8 @@ contract Deploy is Script {
     }
 
     function _log() internal view {
+        console2.log("Collateral          ", c.symbol, c.stock);
+        console2.log("Loan token (USDG)   ", c.usdg);
         console2.log("VigilCalendar       ", address(calendar));
         console2.log("VigilSessionOracle  ", address(session));
         console2.log("VigilRiskEngine     ", address(risk));

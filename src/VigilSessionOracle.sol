@@ -65,6 +65,11 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
     uint256 public pokeBountyAmount;
 
     mapping(address => AssetConfig) public configs;
+    /// Whether the token exposes `oraclePaused()`. Robinhood's mainnet stock token does; the testnet tokens issued by
+    /// the same registry (implementation `Stock`, Sep 2026) expose uiMultiplier/newUIMultiplier/effectiveAt but not
+    /// oraclePaused, so it is probed once at registration and rule 1 is skipped where the token cannot express it
+    /// (rule 2 — the effectiveAt window — still applies).
+    mapping(address => bool) public hasOraclePaused;
     mapping(address => AttestState) public attestations;
     mapping(address => IndexState) internal idx;
     mapping(address => uint256) public bountyPool;
@@ -123,6 +128,9 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
         configs[asset].registered = true;
         idx[asset].lastPoke = uint64(block.timestamp);
         idx[asset].lastMultiplier = IStockToken(asset).uiMultiplier();
+        try IStockToken(asset).oraclePaused() returns (bool) {
+            hasOraclePaused[asset] = true;
+        } catch {}
         emit AssetRegistered(asset, cfg.feed);
     }
 
@@ -155,7 +163,7 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
         if (!c.registered) revert NotRegistered();
         s = calendar.sessionAt(uint64(block.timestamp));
         IStockToken t = IStockToken(asset);
-        if (t.oraclePaused()) return (Regime.CORP_ACTION, s, 0);
+        if (hasOraclePaused[asset] && t.oraclePaused()) return (Regime.CORP_ACTION, s, 0);
         uint256 eff = t.effectiveAt();
         if (eff != 0 && block.timestamp + c.corpActionPre >= eff && block.timestamp <= eff + c.corpActionPost) {
             uint256 cur = t.uiMultiplier();

@@ -2,6 +2,7 @@ import { el, setText, svgEl } from '../ui/dom';
 import { feedToUsd, fmtBps, fmtUsd, priceToUsdg } from '../ui/format';
 import { linePath, makeScale, niceMaxBps } from '../ui/svg';
 import { MARKERS, type CurvePoint } from '../chain/curve';
+import { SYMBOL } from '../deployment';
 import type { Snapshot } from '../chain/snapshot';
 import type { Panel } from './types';
 
@@ -31,8 +32,8 @@ export function createPrice(): Panel & { setCurve(c: CurvePoint[]): void } {
   const root = el('section', { class: 'panel reveal', id: 'price' },
     el('p', { class: 'kicker', text: '02 · Price' }),
     el('div', { class: 'price-grid' },
-      el('div', { class: 'tile' }, el('p', { class: 'kicker', text: 'Raw feed · NVDA/USD' }), feedV, el('p', { class: 'muted', text: 'what a plain Chainlink oracle reports' })),
-      el('div', { class: 'tile' }, el('p', { class: 'kicker', text: 'Vigil oracle · USDG per NVDA' }), vigilV, vigilNote),
+      el('div', { class: 'tile' }, el('p', { class: 'kicker', text: `Raw feed · ${SYMBOL}/USD` }), feedV, el('p', { class: 'muted', text: 'what a plain Chainlink oracle reports' })),
+      el('div', { class: 'tile' }, el('p', { class: 'kicker', text: `Vigil oracle · USDG per ${SYMBOL}` }), vigilV, vigilNote),
       el('div', { class: 'tile' }, el('p', { class: 'kicker', text: 'Haircut in force' }), hcNow, hcNote),
     ),
     el('div', { class: 'chart-head' },

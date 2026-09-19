@@ -1,5 +1,5 @@
 import { el, svgEl } from '../ui/dom';
-import { ADDR, CONTRACT_ORDER, MARKET_ID, TX_OF, explorerAddress, explorerTx, type ContractName } from '../deployment';
+import { ADDR, CONTRACT_ORDER, MARKET_ID, SYMBOL, TX_OF, explorerAddress, explorerTx, type ContractName } from '../deployment';
 import { shortAddr } from '../ui/format';
 import type { Panel } from './types';
 
@@ -15,8 +15,9 @@ const ROLE: Record<ContractName, string> = {
   Morpho: 'Morpho Blue, deployed from source (the testnet has none)',
   USDG: 'Global Dollar — the real Paxos USDG issued on the testnet (faucet.paxos.com), 6 decimals',
   MockUSDG: 'mock loan token, 6 decimals',
-  MockStockToken: 'mock ERC-8056 NVDA stock token',
-  MockFeed: 'mock Chainlink NVDA/USD feed, 8 decimals',
+  StockToken: `Robinhood's own ${SYMBOL} stock token on the testnet (ERC-8056, registry 0x1dF3…6Ca5) — the collateral`,
+  MockStockToken: `mock ERC-8056 ${SYMBOL} stock token`,
+  MockFeed: `mock Chainlink ${SYMBOL}/USD feed, 8 decimals (the testnet has no Chainlink feeds)`,
   MockIRM: 'mock interest rate model',
 };
 
@@ -66,7 +67,7 @@ export function createContracts(): Panel {
       el('td', { class: 'mono' }, el('a', { href: explorerAddress(ADDR[name]), target: '_blank', rel: 'noopener', text: shortAddr(ADDR[name]), title: ADDR[name] })),
       el('td', { class: 'mono' }, tx
         ? el('a', { href: explorerTx(tx), target: '_blank', rel: 'noopener', text: 'deploy tx ↗' })
-        : el('span', { class: 'muted', text: 'issued by Paxos' })),
+        : el('span', { class: 'muted', text: name === 'USDG' ? 'issued by Paxos' : 'issued by Robinhood' })),
     );
   });
   const root = el('section', { class: 'panel reveal', id: 'contracts' },

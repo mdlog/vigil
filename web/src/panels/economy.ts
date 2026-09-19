@@ -1,4 +1,5 @@
 import { el, setText } from '../ui/dom';
+import { SYMBOL } from '../deployment';
 import { fmtAge, fmtDuration, fmtUsd, premiumPer1000, usdg6 } from '../ui/format';
 import { REGIME_NAMES } from '../ui/time';
 import type { Panel } from './types';
@@ -18,7 +19,7 @@ export function createEconomy(): Panel {
       el('div', { class: 'tile' }, el('p', { class: 'kicker', text: 'Premium index' }), idx, idxNote),
       el('div', { class: 'tile' }, el('p', { class: 'kicker', text: 'Premium for this closure' }), prem, premNote),
       el('div', { class: 'tile' }, el('p', { class: 'kicker', text: 'Backstop · first-loss ERC-4626' }), bsAssets, bsNote),
-      el('div', { class: 'tile' }, el('p', { class: 'kicker', text: 'Morpho market NVDA/USDG · LLTV 86 %' }), mkt, mktNote),
+      el('div', { class: 'tile' }, el('p', { class: 'kicker', text: `Morpho market ${SYMBOL}/USDG · LLTV 86 %` }), mkt, mktNote),
     ),
   );
   return {

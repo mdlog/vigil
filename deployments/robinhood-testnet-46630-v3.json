@@ -1,0 +1,89 @@
+{
+  "chainId": 46630,
+  "network": "Robinhood Chain testnet",
+  "rpc": "https://rpc.testnet.chain.robinhood.com",
+  "explorer": "https://explorer.testnet.chain.robinhood.com",
+  "deployer": "0x90351bb1e85a17d5f70c62c0cc076d39d897076d",
+  "deployedAt": "2026-09-19T21:53:28Z",
+  "version": 3,
+  "previous": "robinhood-testnet-46630-v2.json",
+  "notes": "v3: the loan token is the real Paxos USDG issued on the testnet (0x7E95\u2026802F); Morpho Blue, the NVDA ERC-8056 token, the NVDA/USD feed and the IRM are still deployed here as mocks because the testnet has no official ones.",
+  "market": {
+    "id": "0xf44a2ac2f5718ff156ef10a378414d99ae20842c815198f88e3b752dd64d7f1a",
+    "loanToken": "USDG (Paxos, testnet)",
+    "collateralToken": "MockStockToken (NVDA)",
+    "oracle": "VigilOracle",
+    "irm": "MockIRM",
+    "lltv": "0.86e18"
+  },
+  "contracts": {
+    "Morpho": {
+      "address": "0x34089d5061a9f5330b8674c16d44bc76b551feab",
+      "tx": "0xef9afa153ba8a10a0a874abeddd38108b05bc2a157fe6a6a6bc0787a1ee494bb",
+      "block": 121825765
+    },
+    "MockIRM": {
+      "address": "0x116f2dd1a7999995b1123d8f0541ac25b538dfa9",
+      "tx": "0xbcfb5095b365bb215ea01c9e55154adacca326c94f7327d54206c4931b0f88b3",
+      "block": 121825765
+    },
+    "MockStockToken": {
+      "address": "0xf20f6806d85e65e4375ced9903fb72055307bc29",
+      "tx": "0x9bc6489cf2a5cfdee7d1ad2003c98a3f87a3575f72cd808844a0d14e99a5316a",
+      "block": 121825766
+    },
+    "MockFeed": {
+      "address": "0x0ae314e93d5722b7d7c6fcaac87d3e139f65e97c",
+      "tx": "0x5e6b5cc76ea73b49123789c4debd013322b8104ad3f82bb7821e97564a2b4f98",
+      "block": 121825766
+    },
+    "VigilCalendar": {
+      "address": "0x2c9586b92e9c5c3c27e899920e11af7f8227e1c1",
+      "tx": "0xdbface15c51a7827373a4bbcf33aedc9f3fa84ba27406d9953b8eeacd3ec36d9",
+      "block": 121825766
+    },
+    "VigilSessionOracle": {
+      "address": "0xa86a812b837bab077828312221a85b3505bf1ca7",
+      "tx": "0xfcc56296ef5d0adc72abf80572cc04f272814dba72621eaf25c287e51121835e",
+      "block": 121825766
+    },
+    "VigilRiskEngine": {
+      "address": "0x0f0868173f1be1dab8fecccb67acb7a4fe5c493a",
+      "tx": "0xf3f8543f48536d94804a70acd8570c091bcc45d465ab1a18ca7017c98297237e",
+      "block": 121825766
+    },
+    "VigilOracle": {
+      "address": "0xf2beee25008e34d5bf6cf948f3f1fd1baea1a865",
+      "tx": "0xc1b4ff9a3ee7333043ba8aa70fe9b4b56a19c6a6350ff5f1a5cb8a1054c23daf",
+      "block": 121825766
+    },
+    "VigilBackstop": {
+      "address": "0x252674b07187e0aca5ecab2484d9949c0b766516",
+      "tx": "0xb0c276751fc0a59ad0d1fd1a0e1deb191fb3ca46fe4a78a9aa9d4f0076370226",
+      "block": 121825766
+    },
+    "VigilPremium": {
+      "address": "0xa26725997452b60ac72f46f9e242f67b6b80fd81",
+      "tx": "0x59fbd7252077444acf0e3892c89a609604c95c3998deec1fc7f430c7298e8d3c",
+      "block": 121825766
+    },
+    "VigilPreLiquidation": {
+      "address": "0xf58a5e7e24cc346b59bf6169be1841304f8438ea",
+      "tx": "0xa94e260a74b952bed2af46c463e62a5cf2140f33605f33f0f75ee4b0156f3555",
+      "block": 121825767
+    },
+    "VigilLossReporter": {
+      "address": "0x53d87458c47e0d7af9eec17e82a5e15fca9eba95",
+      "tx": "0xa36834ac5f8f310ee79cdfb62534efdb23b0468d8eab76b6ce562fff7c5e61b3",
+      "block": 121825767
+    },
+    "USDG": {
+      "address": "0x7E955252E15c84f5768B83c41a71F9eba181802F",
+      "issuer": "Paxos \u2014 Global Dollar (USDG) on Robinhood Chain testnet, 6 decimals, EIP-1967 proxy; 100 USDG per wallet per day from https://faucet.paxos.com/",
+      "external": true
+    }
+  },
+  "transactions": 25,
+  "gasUsed": 27130347,
+  "firstBlock": 121825765
+}

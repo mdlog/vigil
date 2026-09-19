@@ -11,11 +11,14 @@ export const VIDEO_DIR = path.dirname(new URL(import.meta.url).pathname);
 export const OUT_DIR = path.join(VIDEO_DIR, "out");
 export const PUBLIC_HOST = "mdlog.github.io/vigil";
 
-/** Transactions per phase of script/E2E.s.sol, in broadcast order. Sum = 37 (USDG comes from the deployer, not a mint). */
+/**
+ * Transactions per phase of script/E2E.s.sol on a real-token deployment, in broadcast order. Sum = 37: the
+ * deployer hands out gas, USDG and the stock token in phase 0 (12 tx), so borrowing needs no mint (3 per member).
+ */
 export const TX_PLAN: { phase: number; name: string; txs: number }[] = [
-  { phase: 0, name: "fund", txs: 10 },
+  { phase: 0, name: "fund", txs: 12 },
   { phase: 1, name: "supply", txs: 2 },
-  { phase: 2, name: "borrow", txs: 8 },
+  { phase: 2, name: "borrow", txs: 6 },
   { phase: 3, name: "member", txs: 6 },
   { phase: 4, name: "backstop", txs: 3 },
   { phase: 5, name: "keeper", txs: 1 },
@@ -61,6 +64,7 @@ export type Take = {
   firstBlock: number;
   lastBlock: number;
   actors: Record<string, string>;
+  symbol: string;
   supplyUsdg: number;
   collateralNvda: number;
   debtUsdg: number;
@@ -172,15 +176,15 @@ export function narration(id: string, t: Take): string {
     case "post-03-end":
       return `The calendar is a verified on-chain table. Everything is open source.`;
     case "00-title":
-      return `Vigil prices the risk that a stock market is closed. This is the public dashboard reading Robinhood Chain testnet, on a Saturday: the exchange regime is closed, the feed is frozen at ${fmt(t.feedBefore)}, and Vigil's oracle already reports ${fmt(t.priceBefore)}. On the right, a Foundry script starts a real end-to-end run. It funds five throwaway actors first, with gas and with Paxos USDG.`;
+      return `Vigil prices the risk that a stock market is closed. This is the public dashboard reading Robinhood Chain testnet, on a Saturday: the exchange regime is closed, the ${t.symbol} feed is frozen at ${fmt(t.feedBefore)}, and Vigil's oracle already reports ${fmt(t.priceBefore)}. On the right, a Foundry script starts a real end-to-end run. It funds five throwaway actors first — gas, Paxos USDG and Robinhood's ${t.symbol} token.`;
     case "01-supply-borrow":
-      return `Alice supplies ${fmt(t.supplyUsdg, 0)} USDG to the NVDA market. Bob and Erin each post ${fmt(t.collateralNvda, 2)} NVDA and borrow ${fmt(t.debtUsdg, 2)} USDG — ${pct(t.ltv0Bps)} percent loan-to-value against a price that already carries the weekend haircut. Watch the market line: borrowed and supplied move as the transactions confirm.`;
+      return `Alice supplies ${fmt(t.supplyUsdg, 0)} USDG to the ${t.symbol} market. Bob and Erin each post ${fmt(t.collateralNvda, 2)} ${t.symbol} and borrow ${fmt(t.debtUsdg, 2)} USDG — ${pct(t.ltv0Bps)} percent loan-to-value against a price that already carries the weekend haircut. Watch the market line: borrowed and supplied move as the transactions confirm.`;
     case "02-member-backstop":
       return `Both borrowers authorize Vigil's pre-liquidation and fund a premium escrow — that is what makes them members. Then Carol deposits ${fmt(t.backstopDepositUsdg, 0)} USDG into the first-loss backstop and requests ten percent back. Her exit waits seven days, so it always crosses a weekend.`;
     case "03-keeper-unwind":
       return `The keeper delays Monday's open by one hour — a keeper can only tighten, never loosen. Then Dave unwinds Bob while liquidity still exists: ${fmt(t.unwindRepaidUsdg, 2)} USDG repaid at a ${pct(t.unwindDiscountBps)} percent discount, Bob down to ${pct(t.ltvAfterUnwindBps)} percent loan-to-value.`;
     case "04-gap-liquidate":
-      return `The Monday gap: the feed drops ${pct(t.dropBps)} percent — the NVDA gap of August 2024. The oracle falls to ${fmt(t.priceAfter)}. Dave liquidates both members: the backstop pays Erin's ${fmt(t.erinShortfallUsdg)} USDG shortfall in the same transaction, and Bob needs no cover.`;
+      return `The Monday gap: the feed drops ${pct(t.dropBps)} percent — ${t.symbol}'s gap of August 2024. The oracle falls to ${fmt(t.priceAfter)}. Dave liquidates both members: the backstop pays Erin's ${fmt(t.erinShortfallUsdg)} USDG shortfall in the same transaction, and Bob needs no cover.`;
     case "05-restore-end":
       return `The feed is restored. The backstop went from ${fmt(t.backstopBeforeUsdg, 2)} to ${fmt(t.backstopAfterUsdg, 2)} USDG; the suppliers' assets did not fall by a single unit. ${t.txCount} transactions, all real, all on the explorer. Vigil: session-aware collateral risk for tokenized equity, on Morpho Blue, on Robinhood Chain.`;
     default:

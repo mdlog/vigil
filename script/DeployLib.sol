@@ -16,10 +16,21 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 /// Calibration parameters & shared configuration for Deploy and Demo (numbers from calibrator/report.md, PRD §6.6).
 library VigilParams {
     function surface() internal pure returns (VigilRiskEngine.Surface memory) {
+        return surfaceFor("NVDA");
+    }
+
+    /// Per-ticker close-to-open σ from calibrator/report_full.md (k, floor and cap are shared): NVDA 0.0160
+    /// (deployed NVDA surface), TSLA 0.0176, AAPL 0.0087. The premium and buffer tables are the same for all three
+    /// (the backtest collects 122 bp/yr on each at max LTV).
+    function surfaceFor(string memory symbol) internal pure returns (VigilRiskEngine.Surface memory) {
+        bytes32 h = keccak256(bytes(symbol));
+        uint64 sigma;
+        if (h == keccak256("NVDA")) sigma = 0.016e18;
+        else if (h == keccak256("TSLA")) sigma = 0.0176e18;
+        else if (h == keccak256("AAPL")) sigma = 0.0087e18;
+        else revert("VigilParams: no surface for symbol");
         return
-            VigilRiskEngine.Surface({
-                sigmaGapWad: 0.016e18, kTailBps: 30_000, hFloorBps: 50, hMaxBps: 2_500, updatedAt: 0
-            });
+            VigilRiskEngine.Surface({sigmaGapWad: sigma, kTailBps: 30_000, hFloorBps: 50, hMaxBps: 2_500, updatedAt: 0});
     }
 
     function premiumTable() internal pure returns (VigilRiskEngine.PremiumTable memory) {
