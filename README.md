@@ -140,16 +140,21 @@ feeds or stock tokens, verified on-chain on 19 Sep 2026; mainnet 4663 has all of
 | `STOCK_TOKEN` | ERC-8056 collateral | NVDA `0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC` | `MockStockToken` |
 | `FEED` | Chainlink price feed | NVDA/USD `0x379EC4f7C378F34a1B47E4F3cbeBCbAC3E8E9F15` | `MockFeed` |
 | `USDG_FEED` | USDG/USD feed | `0x61B7e5650328764B076A108EFF5fa7282a1B9aD2` | assume $1 |
+| `PRIVATE_KEY` | deployer key for `--broadcast` | — | wallet flags (`--private-key`, `--account`) |
 | `GUARDIAN`, `CALIBRATOR`, `KEEPER_SIGNER` | role holders | — | deployer |
 | `LLTV`, `TARGET_LTV`, `CAP_BPS`, `COVERAGE_CAP` | market parameters | — | `0.86e18`, `0.76e18`, `500`, `100000e6` |
 
 ```bash
+cp .env.example .env            # then set PRIVATE_KEY (gitignored; forge loads .env automatically)
+
 # simulate (no key needed)
 forge script script/Deploy.s.sol --rpc-url robinhood_testnet
 
-# broadcast (needs testnet ETH from faucet.testnet.chain.robinhood.com)
-forge script script/Deploy.s.sol --rpc-url robinhood_testnet --broadcast --private-key $PRIVATE_KEY
+# broadcast (the deployer needs testnet ETH from faucet.testnet.chain.robinhood.com)
+forge script script/Deploy.s.sol --rpc-url robinhood_testnet --broadcast
 ```
+
+`PRIVATE_KEY` may be left empty in favour of `--private-key`, `--account` or `--sender`.
 
 ## Default parameters
 

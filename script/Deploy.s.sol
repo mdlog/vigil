@@ -32,8 +32,9 @@ import {MockIRM} from "../src/mocks/MockIRM.sol";
 ///   GUARDIAN / CALIBRATOR / KEEPER_SIGNER  default = deployer
 ///   LLTV (0.86e18), TARGET_LTV (0.76e18), CAP_BPS (500), COVERAGE_CAP (100000e6)
 ///
-/// Testnet 46630 tidak memiliki Morpho, Chainlink, maupun stock token (verifikasi 19 Sep 2026) → semua mock:
-///   forge script script/Deploy.s.sol --rpc-url robinhood_testnet --broadcast --private-key $PRIVATE_KEY
+/// Testnet 46630 tidak memiliki Morpho, Chainlink, maupun stock token (verifikasi 19 Sep 2026) → semua mock.
+///   PRIVATE_KEY   kunci deployer, diisi di .env (gitignored; lihat .env.example); alternatif: --private-key
+///   forge script script/Deploy.s.sol --rpc-url robinhood_testnet --broadcast
 contract Deploy is Script {
     using MarketParamsLib for MarketParams;
 
@@ -66,8 +67,15 @@ contract Deploy is Script {
     MarketParams market;
 
     function run() external {
-        c.deployer = msg.sender;
-        vm.startBroadcast();
+        // PRIVATE_KEY dari .env (dimuat forge otomatis); kosong → sender dari --private-key/--account/--sender.
+        uint256 pk = vm.envOr("PRIVATE_KEY", uint256(0));
+        if (pk != 0) {
+            c.deployer = vm.addr(pk);
+            vm.startBroadcast(pk);
+        } else {
+            c.deployer = msg.sender;
+            vm.startBroadcast();
+        }
         _resolveDependencies();
         _deployCore();
         _deployEconomy();
