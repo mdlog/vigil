@@ -1,0 +1,31 @@
+import { getAddress } from 'viem';
+import manifest from '../../deployments/robinhood-testnet-46630.json';
+
+export type ContractName =
+  | 'VigilCalendar' | 'VigilSessionOracle' | 'VigilRiskEngine' | 'VigilOracle'
+  | 'VigilBackstop' | 'VigilPremium' | 'VigilPreLiquidation' | 'VigilLossReporter'
+  | 'Morpho' | 'MockUSDG' | 'MockStockToken' | 'MockFeed' | 'MockIRM';
+
+export const CHAIN_ID = manifest.chainId as number;
+export const RPC_URL = manifest.rpc as string;
+export const EXPLORER = manifest.explorer as string;
+export const DEPLOYER = getAddress(manifest.deployer);
+export const DEPLOYED_AT = manifest.deployedAt as string;
+export const MARKET_ID = manifest.market.id as `0x${string}`;
+export const MULTICALL3 = '0xcA11bde05977b3631167028862bE2a173976CA11' as const;
+
+export const ADDR = Object.fromEntries(
+  Object.entries(manifest.contracts).map(([name, c]) => [name, getAddress((c as { address: string }).address)]),
+) as Record<ContractName, `0x${string}`>;
+
+export const CONTRACT_ORDER: ContractName[] = [
+  'VigilCalendar', 'VigilSessionOracle', 'VigilRiskEngine', 'VigilOracle', 'VigilPremium',
+  'VigilBackstop', 'VigilPreLiquidation', 'VigilLossReporter', 'Morpho', 'MockUSDG', 'MockStockToken', 'MockFeed', 'MockIRM',
+];
+
+export const TX_OF: Record<ContractName, `0x${string}`> = Object.fromEntries(
+  Object.entries(manifest.contracts).map(([name, c]) => [name, (c as { tx: string }).tx]),
+) as Record<ContractName, `0x${string}`>;
+
+export const explorerAddress = (a: string) => `${EXPLORER}/address/${a}`;
+export const explorerTx = (h: string) => `${EXPLORER}/tx/${h}`;
