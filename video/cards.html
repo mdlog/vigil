@@ -1,0 +1,40 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>cards</title>
+<style>
+  :root { --bg:#07090f; --fg:#e8ebf0; --muted:#8a94a6; --subtle:#5f6b7c; --line:#1c2431; --amber:#f5b83d; }
+  html, body { margin:0; width:1920px; height:1080px; background:var(--bg); color:var(--fg); overflow:hidden;
+    font-family: "Inter", "Inter Display", ui-sans-serif, system-ui, sans-serif;
+    background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px); background-size: 48px 48px; }
+  .card { position:absolute; inset:0; display:flex; flex-direction:column; justify-content:center; padding:0 160px 140px; box-sizing:border-box; opacity:0; transition:opacity .35s ease; }
+  .card.on { opacity:1; }
+  .eyebrow { display:flex; align-items:center; gap:14px; color:var(--amber); font: 600 20px/1 "DejaVu Sans Mono", ui-monospace, monospace; letter-spacing:.14em; text-transform:uppercase; }
+  .eyebrow::before { content:""; width:40px; height:2px; background:var(--amber); }
+  h1 { font-family:"Inter Display", "Inter", sans-serif; font-size:128px; line-height:1; letter-spacing:-.045em; margin:28px 0 22px; font-weight:600; }
+  .sub { font-size:44px; line-height:1.25; color:var(--muted); max-width:26ch; letter-spacing:-.01em; }
+  .foot { position:absolute; left:160px; right:160px; bottom:176px; display:flex; justify-content:space-between; align-items:flex-end; border-top:1px solid var(--line); padding-top:28px; color:var(--subtle); font: 22px/1.4 "DejaVu Sans Mono", ui-monospace, monospace; }
+  .links { display:grid; gap:14px; font: 30px/1.2 "DejaVu Sans Mono", ui-monospace, monospace; color:var(--fg); margin-top:40px; }
+  .links span { color:var(--subtle); }
+</style>
+<div class="card" id="title">
+  <div class="eyebrow">Arbitrum Open House Singapore · Online Buildathon</div>
+  <h1>Vigil</h1>
+  <div class="sub">A weekend gap, replayed live on Robinhood Chain testnet — with the contracts that price it.</div>
+  <div class="foot"><span>Session-aware collateral risk for tokenized equity on Morpho Blue</span><span>Every transaction in this take is real and on the explorer</span></div>
+</div>
+<div class="card" id="end">
+  <div class="eyebrow">Every number you heard was read from the chain during this take</div>
+  <h1>Vigil</h1>
+  <div class="links">
+    <div><span>live &nbsp;</span>mdlog.github.io/vigil</div>
+    <div><span>code &nbsp;</span>github.com/mdlog/vigil</div>
+    <div><span>chain </span>Robinhood Chain testnet · 46630</div>
+  </div>
+  <div class="foot"><span>Arbitrum Open House Singapore · Online Buildathon</span><span>USDG, NVDA and the price feed are mocks on the testnet</span></div>
+</div>
+<script>
+  window.render = ({ card }) => {
+    document.querySelectorAll(".card").forEach((c) => c.classList.toggle("on", c.id === card));
+    return new Promise((r) => setTimeout(r, 400));
+  };
+</script>

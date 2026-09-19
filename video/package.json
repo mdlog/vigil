@@ -1,0 +1,9 @@
+{
+  "name": "vigil-video",
+  "private": true,
+  "type": "module",
+  "description": "Re-shootable recording of the on-chain E2E run against the live dashboard. See README.md.",
+  "devDependencies": {
+    "playwright": "1.61.1"
+  }
+}
