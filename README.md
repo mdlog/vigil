@@ -22,6 +22,7 @@
 - [Demo: replaying two real Mondays](#demo-replaying-two-real-mondays)
 - [Getting started](#getting-started)
 - [Deployment](#deployment)
+- [Live deployment — Robinhood Chain testnet](#live-deployment--robinhood-chain-testnet-chain-id-46630)
 - [Default parameters](#default-parameters)
 - [Roles and trust assumptions](#roles-and-trust-assumptions)
 - [Design notes](#design-notes)
@@ -156,6 +157,36 @@ forge script script/Deploy.s.sol --rpc-url robinhood_testnet --broadcast
 
 `PRIVATE_KEY` may be left empty in favour of `--private-key`, `--account` or `--sender`.
 
+### Live deployment — Robinhood Chain testnet (chain ID 46630)
+
+Deployed 2026-09-19 from `0x90351bB1E85a17D5f70c62C0cC076D39D897076D` (also `guardian`, `calibrator` and `keeperSigner`), 26 transactions, 26.66 M gas. Full manifest with transaction hashes: [`deployments/robinhood-testnet-46630.json`](deployments/robinhood-testnet-46630.json); Foundry broadcast log under `broadcast/Deploy.s.sol/46630/`.
+
+| Contract | Address |
+|---|---|
+| `VigilCalendar` | [`0xC9a9EC2b905b8AC8C95f7217FD909450475FEC51`](https://explorer.testnet.chain.robinhood.com/address/0xC9a9EC2b905b8AC8C95f7217FD909450475FEC51) |
+| `VigilSessionOracle` | [`0x06A7A6a1234ccf89400CDc554B57b556bc8A3c0b`](https://explorer.testnet.chain.robinhood.com/address/0x06A7A6a1234ccf89400CDc554B57b556bc8A3c0b) |
+| `VigilRiskEngine` | [`0xC1edF7f0D1dBB008efe467cc22D018c88d0a3159`](https://explorer.testnet.chain.robinhood.com/address/0xC1edF7f0D1dBB008efe467cc22D018c88d0a3159) |
+| `VigilOracle` | [`0x351Ca8799D409F3BF37b147928fEE756ee96cA72`](https://explorer.testnet.chain.robinhood.com/address/0x351Ca8799D409F3BF37b147928fEE756ee96cA72) |
+| `VigilPremium` | [`0xf1e5f5C05063308c62b58F72DdE838Ca9F3A66a4`](https://explorer.testnet.chain.robinhood.com/address/0xf1e5f5C05063308c62b58F72DdE838Ca9F3A66a4) |
+| `VigilBackstop` | [`0x3149bb2A5e58D792722673821A15BeC0fE6E7Ca7`](https://explorer.testnet.chain.robinhood.com/address/0x3149bb2A5e58D792722673821A15BeC0fE6E7Ca7) |
+| `VigilPreLiquidation` | [`0x6D7F2a581116354D4ad3CE2F7672dFC0c2DAD700`](https://explorer.testnet.chain.robinhood.com/address/0x6D7F2a581116354D4ad3CE2F7672dFC0c2DAD700) |
+| `VigilLossReporter` | [`0x7DCA6E034C02d5Bb62FCF38227664AD8Fa220ea2`](https://explorer.testnet.chain.robinhood.com/address/0x7DCA6E034C02d5Bb62FCF38227664AD8Fa220ea2) |
+| Morpho Blue (deployed from source — testnet has none) | [`0x8F78d8E2d0DB49E048606A91479E6309D869ae22`](https://explorer.testnet.chain.robinhood.com/address/0x8F78d8E2d0DB49E048606A91479E6309D869ae22) |
+| MockUSDG (loan token, 6 decimals) | [`0x4Aa9186FfA5CAe49F641C51B405ac1850a64D8Fd`](https://explorer.testnet.chain.robinhood.com/address/0x4Aa9186FfA5CAe49F641C51B405ac1850a64D8Fd) |
+| MockStockToken NVDA (ERC-8056 mock, collateral) | [`0x15488fb7764e29F8C587B604E4aD7e89C37687c4`](https://explorer.testnet.chain.robinhood.com/address/0x15488fb7764e29F8C587B604E4aD7e89C37687c4) |
+| MockFeed NVDA/USD (8 decimals) | [`0xaF0F38314f76a1dd15576bbd60Dc12FF95df209b`](https://explorer.testnet.chain.robinhood.com/address/0xaF0F38314f76a1dd15576bbd60Dc12FF95df209b) |
+| MockIRM | [`0x5cCf601F2853729E7d4b33C9D9f52FC40aC3615C`](https://explorer.testnet.chain.robinhood.com/address/0x5cCf601F2853729E7d4b33C9D9f52FC40aC3615C) |
+
+Morpho market NVDA/USDG, LLTV 86 %: id `0x182f57bc84c43b38fb6ec7df529b9e274cd32bd833161d5df5419a126ad7265d`.
+
+Quick liveness check (the oracle answers with the session-aware price — on a weekend it reads `CLOSED` and applies the 500 bps cap):
+
+```bash
+RPC=https://rpc.testnet.chain.robinhood.com
+cast call 0x351Ca8799D409F3BF37b147928fEE756ee96cA72 "price()(uint256)" --rpc-url $RPC
+cast call 0x06A7A6a1234ccf89400CDc554B57b556bc8A3c0b "regimeOf(address)(uint8,uint8,uint64,uint64)" 0x15488fb7764e29F8C587B604E4aD7e89C37687c4 --rpc-url $RPC
+```
+
 ## Default parameters
 
 Calibrated from four years of NVDA close-to-open returns (Sep 2022 – Sep 2026); see `script/DeployLib.sol`.
@@ -260,9 +291,9 @@ test/
 
 ## Status and roadmap
 
-- [x] MVP: 8 contracts, 72 tests, historical replay demo, deployment simulated on testnet 46630
+- [x] MVP: 8 contracts, 72 tests, historical replay demo
 - [x] On-chain verification of every mainnet dependency (table above)
-- [ ] Broadcast deployment to Robinhood Chain testnet
+- [x] Live on Robinhood Chain testnet 46630 (addresses above)
 - [ ] Full calibrator: POT/GPD weekend tail fit, backtest, gap-distribution charts
 - [ ] Re-verify the embedded NYSE calendar against nyse.com (V15)
 - [ ] Off-chain services: session keeper (attestations) and unwind bot
