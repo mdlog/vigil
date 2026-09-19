@@ -13,6 +13,7 @@ const ROLE: Record<ContractName, string> = {
   VigilPreLiquidation: 'session-aware soft unwind (Morpho PreLiquidation pattern)',
   VigilLossReporter: 'liquidateWithCover: the backstop repays the shortfall before seizure',
   Morpho: 'Morpho Blue, deployed from source (the testnet has none)',
+  USDG: 'Global Dollar — the real Paxos USDG issued on the testnet (faucet.paxos.com), 6 decimals',
   MockUSDG: 'mock loan token, 6 decimals',
   MockStockToken: 'mock ERC-8056 NVDA stock token',
   MockFeed: 'mock Chainlink NVDA/USD feed, 8 decimals',
@@ -57,12 +58,17 @@ function flow(): SVGSVGElement {
 }
 
 export function createContracts(): Panel {
-  const rows = CONTRACT_ORDER.map((name) => el('tr', {},
-    el('td', { class: 'mono', text: name }),
-    el('td', { text: ROLE[name] }),
-    el('td', { class: 'mono' }, el('a', { href: explorerAddress(ADDR[name]), target: '_blank', rel: 'noopener', text: shortAddr(ADDR[name]), title: ADDR[name] })),
-    el('td', { class: 'mono' }, el('a', { href: explorerTx(TX_OF[name]), target: '_blank', rel: 'noopener', text: 'deploy tx ↗' })),
-  ));
+  const rows = CONTRACT_ORDER.map((name) => {
+    const tx = TX_OF[name];
+    return el('tr', {},
+      el('td', { class: 'mono', text: name }),
+      el('td', { text: ROLE[name] }),
+      el('td', { class: 'mono' }, el('a', { href: explorerAddress(ADDR[name]), target: '_blank', rel: 'noopener', text: shortAddr(ADDR[name]), title: ADDR[name] })),
+      el('td', { class: 'mono' }, tx
+        ? el('a', { href: explorerTx(tx), target: '_blank', rel: 'noopener', text: 'deploy tx ↗' })
+        : el('span', { class: 'muted', text: 'issued by Paxos' })),
+    );
+  });
   const root = el('section', { class: 'panel reveal', id: 'contracts' },
     el('p', { class: 'kicker', text: '05 · Architecture and contracts' }),
     el('p', { class: 'muted', text: 'Vigil is not a lending protocol: it attaches to an unmodified Morpho Blue market through the oracle, and adds a premium, a first-loss tranche, a soft unwind and a covered liquidation around it.' }),

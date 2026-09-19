@@ -41,6 +41,7 @@ function main() {
   for (const m of log.matchAll(/\[E2E\] actor (\w+) = (0x[0-9a-fA-F]{40})/g)) actors[m[1]] = m[2];
   const [supply] = need(/phase 1 supply: alice supplied (\d+) USDG/, log, "supply");
   const [bobDebt, , priceCents] = need(/phase 2 borrow: bob (\d+) USDG, erin (\d+) USDG \(6d\) at oracle price (\d+) cents/, log, "borrow");
+  const [collateral] = need(/phase 2 collateral: (\d+) NVDA \(18d\) per member/, log, "collateral");
   const [lp] = need(/phase 4 backstop: carol deposited (\d+) USDG/, log, "backstop deposit");
   const [clBefore, clAfter] = need(/phase 5 keeper: attested delayed open, closure (\d+) -> (\d+) \(tenths of an hour\)/, log, "keeper");
   const [unwindRepaid, discount, ltvAfter] = need(/phase 6 unwind: dave repaid (\d+) USDG \(6d\) for bob at (\d+) bps discount, bob LTV (\d+) bps/, log, "unwind");
@@ -65,6 +66,7 @@ function main() {
     lastBlock: Math.max(...blocks),
     actors,
     supplyUsdg: Number(supply),
+    collateralNvda: Number(collateral) / 1e18,
     debtUsdg: Number(bobDebt) / 1e6,
     ltv0Bps: Number(ltv0),
     priceBefore: Number(priceCents) / 100,

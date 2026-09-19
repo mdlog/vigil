@@ -1,0 +1,85 @@
+{
+  "chainId": 46630,
+  "network": "Robinhood Chain testnet",
+  "rpc": "https://rpc.testnet.chain.robinhood.com",
+  "explorer": "https://explorer.testnet.chain.robinhood.com",
+  "deployer": "0x90351bb1e85a17d5f70c62c0cc076d39d897076d",
+  "deployedAt": "2026-09-19T06:38:46Z",
+  "version": 2,
+  "previous": "robinhood-testnet-46630-v1.json",
+  "market": {
+    "id": "0x4b7339b6469bf06ff83ec7ec4baa995f2589ae7782d11b2ba6d02c2c218a5145",
+    "loanToken": "MockUSDG",
+    "collateralToken": "MockStockToken (NVDA)",
+    "oracle": "VigilOracle",
+    "irm": "MockIRM",
+    "lltv": "0.86e18"
+  },
+  "contracts": {
+    "Morpho": {
+      "address": "0x62ded950d641cbdc935eb6f28be19912c84afad9",
+      "tx": "0xa33274d3ace2265b4b58b64425c92cb5166a7ce1ecf90c9ec75889bf07aac8cc",
+      "block": 121592095
+    },
+    "MockIRM": {
+      "address": "0xa41bfe7f75719ba17ae7046929df7a89e580dbc3",
+      "tx": "0x748c9fbce8035a754b958ae440b12f2788ebc398f8ffba1ce9d9c60d7fba21ef",
+      "block": 121592111
+    },
+    "MockUSDG": {
+      "address": "0xf6349dfd96dabdf6ed596f25e272060e5e6860ef",
+      "tx": "0xcbf5977961fd9b4406825791bce9ee5c444f6cab0669d3883bf5045ae1174036",
+      "block": 121592143
+    },
+    "MockStockToken": {
+      "address": "0x78e2a9b5a2e725b4fcfea23cb4f9aa8232491f90",
+      "tx": "0x3fe0c6ed537159d756f6cd16d9f7334bad626e7c23853c36c7823557d323b12d",
+      "block": 121592150
+    },
+    "MockFeed": {
+      "address": "0xa21b9aaa5e7074e7171cb8b3b166bcfaba36e9c3",
+      "tx": "0xf2daaca637a91c4724117cdcf173a907fdc6399f21d1525de48dff92f10aa284",
+      "block": 121592159
+    },
+    "VigilCalendar": {
+      "address": "0x3ffe81615b8b1909f684e9a7c1eb82a38c0a0b8c",
+      "tx": "0xdaecb7ba9093be16bcceb73225bc4a68ae7fdb286ad1b2f12657aa1dbe3b932e",
+      "block": 121592175
+    },
+    "VigilSessionOracle": {
+      "address": "0x575a54bc6d25e19b60fc67b5ccea09bfee12a0fd",
+      "tx": "0x2151928e2937fb1b7fee1d3f7f81da95981d417570cccd59ab51025ebbf12a94",
+      "block": 121592181
+    },
+    "VigilRiskEngine": {
+      "address": "0xb92b73e35c740f2893c949110a742e31554fc2ae",
+      "tx": "0x2171b07fef3092f0118b6fd56c5e61a2b3070398aed6b2df07053a61249af2da",
+      "block": 121592198
+    },
+    "VigilOracle": {
+      "address": "0x445a820a0f3aee54e43715620938e71b04a2974e",
+      "tx": "0x8c839b8ef814a0801de2e52d2fee93ae78cfa6de1364ec540427015380387e5f",
+      "block": 121592276
+    },
+    "VigilBackstop": {
+      "address": "0x27873298da0d56c3efb17bdf7a39e1c4808149b9",
+      "tx": "0x9bce94eab90fd8e5176f2bc89e90116784d12a492bd73b9e49636c43c7f28005",
+      "block": 121592318
+    },
+    "VigilPremium": {
+      "address": "0xfb3e7b6b169fdf655d76d6984a895bfa4703bb70",
+      "tx": "0xf6a9d8d51c2c2273eba3014a99feaaa4fab2b9d3069e8d68c9e3aed3f0f47ed7",
+      "block": 121592337
+    },
+    "VigilPreLiquidation": {
+      "address": "0x824a6d52ad196796bfea76b8754fddc111f70b07",
+      "tx": "0x90e681ab5af06f911c2b927894e80e438891c8aded65af1fcde9cf8b281ef114",
+      "block": 121592350
+    },
+    "VigilLossReporter": {
+      "address": "0x740c6ca8c04c5f528db86f1779a467bf91424984",
+      "tx": "0xfbf1c9acc1cf007b8411f048f88582a7aee6f774e46ce1cc641b15a3e8d56be5",
+      "block": 121592371
+    }
+  }
+}

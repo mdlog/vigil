@@ -14,12 +14,16 @@ import {VigilPreLiquidation} from "../src/VigilPreLiquidation.sol";
 import {VigilLossReporter} from "../src/VigilLossReporter.sol";
 import {MockStockToken} from "../src/mocks/MockStockToken.sol";
 import {MockFeed} from "../src/mocks/MockFeed.sol";
-import {MockUSDG} from "../src/mocks/MockUSDG.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Regime} from "../src/interfaces/IVigil.sol";
 
 /// End-to-end against a real deployment (testnet 46630 or an Anvil fork of it): five actors run the full cycle
 /// supply → borrow → member → backstop → keeper attestation → soft unwind → Monday gap (replay of 5 Aug 2024)
 /// → liquidateWithCover, with a `require` in every phase — if one fails in simulation, nothing is broadcast.
+///
+/// USDG is the real one: Paxos's testnet Global Dollar (0x7E955252E15c84f5768B83c41a71F9eba181802F, 100 USDG per
+/// wallet per day from faucet.paxos.com), so the deployer must hold USDG_NEEDED before the run and hands it to the
+/// actors in phase 0. The amounts are sized to a few faucet claims; the NVDA collateral is a mock and is minted.
 ///
 /// Env: PRIVATE_KEY (deployer = keeperSigner, from .env), E2E_MANIFEST (default deployments/robinhood-testnet-46630.json),
 ///      E2E_FEED_DROP_BPS (default 1418 = −14.18 %, NVDA 5 Aug 2024).
@@ -29,11 +33,13 @@ contract E2E is Script {
     using MarketParamsLib for MarketParams;
     using MorphoBalancesLib for IMorpho;
 
-    uint256 constant SUPPLY = 10_000e6;
-    uint256 constant COLLATERAL = 10e18;
+    uint256 constant SUPPLY = 100e6;
+    uint256 constant COLLATERAL = 0.25e18;
     uint256 constant LTV_WAD = 0.859e18;
-    uint256 constant LP_DEPOSIT = 5_000e6;
-    uint256 constant LIQUIDATOR_USDG = 5_000e6;
+    uint256 constant LP_DEPOSIT = 50e6;
+    uint256 constant LIQUIDATOR_USDG = 55e6; // unwind repay ≈ 7.7 + both liquidations ≈ 40 USDG
+    uint256 constant ESCROW_FUND = 1e6; // per member; the 7-day reserve on a ~25 USDG debt is well under 0.1 USDG
+    uint256 constant USDG_NEEDED = SUPPLY + LP_DEPOSIT + LIQUIDATOR_USDG + 2 * ESCROW_FUND; // 207 USDG
     uint256 constant GAS_MONEY = 0.0001 ether;
     int256 constant FEED_BASE = 120e8;
 
@@ -46,7 +52,7 @@ contract E2E is Script {
     VigilLossReporter lossReporter;
     MockStockToken nvda;
     MockFeed feed;
-    MockUSDG usdg;
+    IERC20 usdg;
     MarketParams market;
     Id id;
 
@@ -96,20 +102,27 @@ contract E2E is Script {
         _actors();
         uint256 dropBps = vm.envOr("E2E_FEED_DROP_BPS", uint256(1418));
 
-        // ── phase 0: gas money for the throwaway actors ──────────────────────────────────────────
-        console2.log("[E2E] phase 0 fund: deployer %s funds 5 ephemeral actors", deployer);
+        // ── phase 0: gas money and USDG for the throwaway actors ─────────────────────────────────
+        require(usdg.balanceOf(deployer) >= USDG_NEEDED, "deployer needs USDG_NEEDED (faucet.paxos.com)");
+        console2.log(
+            "[E2E] phase 0 fund: deployer %s funds 5 ephemeral actors with gas and %s USDG", deployer, USDG_NEEDED / 1e6
+        );
         vm.startBroadcast(deployerPk);
         payable(alice.addr).transfer(GAS_MONEY);
         payable(bob.addr).transfer(GAS_MONEY);
         payable(erin.addr).transfer(GAS_MONEY);
         payable(carol.addr).transfer(GAS_MONEY);
         payable(dave.addr).transfer(GAS_MONEY);
+        usdg.transfer(alice.addr, SUPPLY);
+        usdg.transfer(bob.addr, ESCROW_FUND);
+        usdg.transfer(erin.addr, ESCROW_FUND);
+        usdg.transfer(carol.addr, LP_DEPOSIT);
+        usdg.transfer(dave.addr, LIQUIDATOR_USDG);
         vm.stopBroadcast();
 
         // ── phase 1: supply ──────────────────────────────────────────────────────────────────────
         r.supplyBefore = _market().totalSupplyAssets;
         vm.startBroadcast(alice.pk);
-        usdg.mint(alice.addr, SUPPLY);
         usdg.approve(address(morpho), SUPPLY);
         morpho.supply(market, SUPPLY, 0, alice.addr, "");
         vm.stopBroadcast();
@@ -129,6 +142,7 @@ contract E2E is Script {
             r.erinDebt0,
             r.priceBefore / 1e22
         );
+        console2.log("[E2E] phase 2 collateral: %s NVDA (18d) per member", COLLATERAL);
 
         // ── phase 3: Vigil membership ────────────────────────────────────────────────────────────
         _join(bob);
@@ -138,7 +152,6 @@ contract E2E is Script {
 
         // ── phase 4: backstop ────────────────────────────────────────────────────────────────────
         vm.startBroadcast(carol.pk);
-        usdg.mint(carol.addr, LP_DEPOSIT);
         usdg.approve(address(backstop), LP_DEPOSIT);
         uint256 shares = backstop.deposit(LP_DEPOSIT, carol.addr);
         backstop.requestWithdraw(shares / 10);
@@ -179,7 +192,6 @@ contract E2E is Script {
         require(ok && maxRepay > 0, "bob not unwindable");
         r.unwindDiscountBps = preLiq.currentDiscountBps(id, bob.addr);
         vm.startBroadcast(dave.pk);
-        usdg.mint(dave.addr, LIQUIDATOR_USDG);
         usdg.approve(address(preLiq), maxRepay);
         (r.unwindRepaid, r.unwindSeized) = preLiq.preLiquidate(id, bob.addr, maxRepay, "");
         vm.stopBroadcast();
@@ -255,7 +267,12 @@ contract E2E is Script {
         lossReporter = VigilLossReporter(vm.parseJsonAddress(json, ".contracts.VigilLossReporter.address"));
         nvda = MockStockToken(vm.parseJsonAddress(json, ".contracts.MockStockToken.address"));
         feed = MockFeed(vm.parseJsonAddress(json, ".contracts.MockFeed.address"));
-        usdg = MockUSDG(vm.parseJsonAddress(json, ".contracts.MockUSDG.address"));
+        usdg = IERC20(
+            vm.parseJsonAddress(
+                json,
+                vm.keyExistsJson(json, ".contracts.USDG") ? ".contracts.USDG.address" : ".contracts.MockUSDG.address"
+            )
+        );
         id = Id.wrap(vm.parseJsonBytes32(json, ".market.id"));
         market = morpho.idToMarketParams(id);
         require(market.oracle == address(oracle), "manifest market/oracle mismatch");
@@ -294,10 +311,10 @@ contract E2E is Script {
 
     function _join(Actor memory who) internal {
         uint256 reserve = premium.minReserve(id, who.addr);
-        uint256 topUp = reserve * 2 + 1e6;
+        uint256 topUp = ESCROW_FUND;
+        require(topUp >= reserve * 2, "escrow fund below twice the reserve");
         vm.startBroadcast(who.pk);
         morpho.setAuthorization(address(preLiq), true);
-        usdg.mint(who.addr, topUp);
         usdg.approve(address(premium), topUp);
         premium.topUp(id, who.addr, topUp);
         vm.stopBroadcast();

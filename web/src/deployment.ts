@@ -4,7 +4,7 @@ import manifest from '../../deployments/robinhood-testnet-46630.json';
 export type ContractName =
   | 'VigilCalendar' | 'VigilSessionOracle' | 'VigilRiskEngine' | 'VigilOracle'
   | 'VigilBackstop' | 'VigilPremium' | 'VigilPreLiquidation' | 'VigilLossReporter'
-  | 'Morpho' | 'MockUSDG' | 'MockStockToken' | 'MockFeed' | 'MockIRM';
+  | 'Morpho' | 'USDG' | 'MockUSDG' | 'MockStockToken' | 'MockFeed' | 'MockIRM';
 
 export const CHAIN_ID = manifest.chainId as number;
 export const RPC_URL = manifest.rpc as string;
@@ -18,14 +18,16 @@ export const ADDR = Object.fromEntries(
   Object.entries(manifest.contracts).map(([name, c]) => [name, getAddress((c as { address: string }).address)]),
 ) as Record<ContractName, `0x${string}`>;
 
-export const CONTRACT_ORDER: ContractName[] = [
+/** Display order; a name absent from the manifest (MockUSDG on a real-USDG deployment) is skipped. */
+export const CONTRACT_ORDER: ContractName[] = ([
   'VigilCalendar', 'VigilSessionOracle', 'VigilRiskEngine', 'VigilOracle', 'VigilPremium',
-  'VigilBackstop', 'VigilPreLiquidation', 'VigilLossReporter', 'Morpho', 'MockUSDG', 'MockStockToken', 'MockFeed', 'MockIRM',
-];
+  'VigilBackstop', 'VigilPreLiquidation', 'VigilLossReporter', 'Morpho', 'USDG', 'MockUSDG', 'MockStockToken', 'MockFeed', 'MockIRM',
+] as ContractName[]).filter((n) => n in manifest.contracts);
 
-export const TX_OF: Record<ContractName, `0x${string}`> = Object.fromEntries(
-  Object.entries(manifest.contracts).map(([name, c]) => [name, (c as { tx: string }).tx]),
-) as Record<ContractName, `0x${string}`>;
+/** Deploy transaction per contract; undefined for a contract Vigil did not deploy (Paxos's USDG). */
+export const TX_OF: Partial<Record<ContractName, `0x${string}`>> = Object.fromEntries(
+  Object.entries(manifest.contracts).flatMap(([name, c]) => ((c as { tx?: string }).tx ? [[name, (c as { tx: string }).tx]] : [])),
+) as Partial<Record<ContractName, `0x${string}`>>;
 
 export const explorerAddress = (a: string) => `${EXPLORER}/address/${a}`;
 export const explorerTx = (h: string) => `${EXPLORER}/tx/${h}`;
