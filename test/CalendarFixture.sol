@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-/// Libur & early-close NYSE 2024–2027 sebagai indeks hari ET (V15: verifikasi di nyse.com sebelum mainnet).
+/// Libur & early-close NYSE 2024–2028 sebagai indeks hari ET — diverifikasi terhadap nyse.com (V15, 19 Sep 2026);
+/// daftar tanggal resminya dipin di test/unit/VigilCalendar.t.sol.
 library CalendarFixture {
     function closedDays() internal pure returns (uint32[] memory d) {
-        uint32[41] memory c = [
+        uint32[50] memory c = [
             uint32(19723),
             19737,
             19772,
@@ -45,7 +46,16 @@ library CalendarFixture {
             21004,
             21067,
             21147,
-            21176 // 2027
+            21176, // 2027
+            21200,
+            21235,
+            21288,
+            21333,
+            21354,
+            21369,
+            21431,
+            21511,
+            21543 // 2028
         ];
         d = new uint32[](c.length);
         for (uint256 i; i < c.length; ++i) {
@@ -54,7 +64,7 @@ library CalendarFixture {
     }
 
     function halfDays() internal pure returns (uint32[] memory d) {
-        uint32[9] memory h = [uint32(19907), 20056, 20081, 20272, 20420, 20446, 20784, 20811, 21148];
+        uint32[11] memory h = [uint32(19907), 20056, 20081, 20272, 20420, 20446, 20784, 20811, 21148, 21368, 21512];
         d = new uint32[](h.length);
         for (uint256 i; i < h.length; ++i) {
             d[i] = h[i];

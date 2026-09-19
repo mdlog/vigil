@@ -51,9 +51,10 @@ library VigilParams {
         });
     }
 
-    /// Libur & early-close NYSE 2024–2027 (indeks hari ET) — V15: verifikasi di nyse.com sebelum mainnet.
+    /// Libur & early-close NYSE 2024–2028 (indeks hari ET). V15 selesai 19 Sep 2026: cocok dengan nyse.com
+    /// (2026–2028 halaman saat ini; 2024–2025 arsip Wayback Mei 2024 & Mar 2025; 9 Jan 2025 rilis pers ICE/NYSE).
     function closedDays() internal pure returns (uint32[] memory d) {
-        uint32[41] memory c = [
+        uint32[50] memory c = [
             uint32(19723),
             19737,
             19772,
@@ -94,7 +95,16 @@ library VigilParams {
             21004,
             21067,
             21147,
-            21176
+            21176,
+            21200,
+            21235,
+            21288,
+            21333,
+            21354,
+            21369,
+            21431,
+            21511,
+            21543
         ];
         d = new uint32[](c.length);
         for (uint256 i; i < c.length; ++i) {
@@ -103,7 +113,7 @@ library VigilParams {
     }
 
     function halfDays() internal pure returns (uint32[] memory d) {
-        uint32[9] memory h = [uint32(19907), 20056, 20081, 20272, 20420, 20446, 20784, 20811, 21148];
+        uint32[11] memory h = [uint32(19907), 20056, 20081, 20272, 20420, 20446, 20784, 20811, 21148, 21368, 21512];
         d = new uint32[](h.length);
         for (uint256 i; i < h.length; ++i) {
             d[i] = h[i];

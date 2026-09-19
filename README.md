@@ -77,7 +77,7 @@ the seizure, so Morpho never realizes bad debt and suppliers are kept whole.
 
 | Contract | Responsibility |
 |---|---|
-| `VigilCalendar` | Deterministic US exchange session calendar from `block.timestamp` (DST 2022–2030 hard-coded, holidays can only be *added*, never removed). |
+| `VigilCalendar` | Deterministic US exchange session calendar from `block.timestamp` (DST 2022–2030 hard-coded, NYSE holidays and early closes 2024–2028 verified against nyse.com; holidays can only be *added*, never removed). |
 | `VigilSessionOracle` | Effective regime per asset (calendar + feed freshness + token `oraclePaused`/`effectiveAt` + keeper attestations that may only tighten, ≤ `CLOSED`), `feedIsUsable`, piecewise premium index. |
 | `VigilRiskEngine` | Risk surface per asset: `H(L) = clamp(H_floor + k·σ·eventMult·√(L/τ_night))`, ramped purely from time, scheduled events (earnings), `π_ref(L)` and `m(b)` tables. |
 | `VigilOracle` | Morpho `IOracle`. Reverts only on `CORP_ACTION` or an *unexpected* stale feed; a feed frozen over the weekend is the normal state. |
@@ -343,7 +343,7 @@ Facts checked with `cast`/`curl` against the official Robinhood Chain RPCs on 19
 | V10 | ERC-8056 on the token | `uiMultiplier` = 1.000775 (dividend), `newUIMultiplier`, `effectiveAt`, `oraclePaused` present ✅; `newUIMultiplier() == uiMultiplier()` after `effectiveAt` → post window uses `lastMultiplier` |
 | V13 | USDG freeze | `isFrozen(address)` exists |
 | V14 | Morpho `repay(onBehalf)` / callbacks | canonical bytecode ✅ |
-| V15 | NYSE calendar 2024–2027 | embedded from public schedules; **re-verify at nyse.com before mainnet** |
+| V15 | NYSE calendar 2024–2028 | ✅ verified 19 Sep 2026: all 50 closures + 11 early closes match nyse.com/markets/hours-calendars (2026–2028 on the current page; 2024–2025 via Wayback snapshots of 29 May 2024 and 5 Mar 2025; the ad-hoc 9 Jan 2025 closure via the ICE/NYSE release), DST 2022–2030 matches `zoneinfo`; pinned by `test_calendar_matchesOfficialNyse2024to2028`. The live v2 calendar carries 2024–2027; 2028 is embedded for the next deployment and can be added to v2 by the guardian (add-only) |
 
 </details>
 
@@ -386,7 +386,7 @@ test/
 - [x] End-to-end run on the live testnet (37 transactions, recorded)
 - [x] Mainnet-fork suite against the real dependencies; mainnet deployment simulated
 - [x] Full calibrator: POT/GPD weekend tail fit, backtest of the on-chain model, gap-distribution charts
-- [ ] Re-verify the embedded NYSE calendar against nyse.com (V15)
+- [x] Re-verify the embedded NYSE calendar against nyse.com (V15) — 2024–2028 pinned by test
 - [ ] Off-chain services: session keeper (attestations) and unwind bot
 
 Out of scope for the MVP: cross-asset portfolio margin, senior/junior tranches, governance, non-ERC-8056

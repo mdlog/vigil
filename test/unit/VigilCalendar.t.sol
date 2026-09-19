@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {VigilCalendar} from "../../src/VigilCalendar.sol";
 import {Regime, Session} from "../../src/interfaces/IVigil.sol";
 import {CalendarFixture} from "../CalendarFixture.sol";
+import {VigilParams} from "../../script/DeployLib.sol";
 
 contract VigilCalendarTest is Test {
     // Jangkar dari zoneinfo (America/New_York) — independen dari implementasi.
@@ -163,5 +164,93 @@ contract VigilCalendarTest is Test {
         assertGt(s.segmentEnd, ts);
         assertLe(s.nextOpen - s.closeAt, 5 days); // maxClosedHorizon (§6.6)
         if (s.cal != Regime.MARKET) assertLe(s.closeAt, ts);
+    }
+
+    /// V15 (19 Sep 2026): daftar libur & early close RESMI NYSE 2024–2028, ditulis sebagai tanggal, harus sama persis
+    /// dengan tabel tertanam (CalendarFixture = script/DeployLib). Sumber: nyse.com/markets/hours-calendars (halaman
+    /// saat ini memuat 2026–2028), arsip Wayback halaman yang sama 29 Mei 2024 (2024) dan 5 Mar 2025 (2025), dan rilis
+    /// pers ICE/NYSE untuk penutupan ad-hoc 9 Jan 2025 (National Day of Mourning). Setiap tanggal → indeks hari ET.
+    function test_calendar_matchesOfficialNyse2024to2028() public view {
+        uint32[50] memory closed;
+        closed[0] = 19723; // 2024-01-01 Mon
+        closed[1] = 19737; // 2024-01-15 Mon
+        closed[2] = 19772; // 2024-02-19 Mon
+        closed[3] = 19811; // 2024-03-29 Fri
+        closed[4] = 19870; // 2024-05-27 Mon
+        closed[5] = 19893; // 2024-06-19 Wed
+        closed[6] = 19908; // 2024-07-04 Thu
+        closed[7] = 19968; // 2024-09-02 Mon
+        closed[8] = 20055; // 2024-11-28 Thu
+        closed[9] = 20082; // 2024-12-25 Wed
+        closed[10] = 20089; // 2025-01-01 Wed
+        closed[11] = 20097; // 2025-01-09 Thu
+        closed[12] = 20108; // 2025-01-20 Mon
+        closed[13] = 20136; // 2025-02-17 Mon
+        closed[14] = 20196; // 2025-04-18 Fri
+        closed[15] = 20234; // 2025-05-26 Mon
+        closed[16] = 20258; // 2025-06-19 Thu
+        closed[17] = 20273; // 2025-07-04 Fri
+        closed[18] = 20332; // 2025-09-01 Mon
+        closed[19] = 20419; // 2025-11-27 Thu
+        closed[20] = 20447; // 2025-12-25 Thu
+        closed[21] = 20454; // 2026-01-01 Thu
+        closed[22] = 20472; // 2026-01-19 Mon
+        closed[23] = 20500; // 2026-02-16 Mon
+        closed[24] = 20546; // 2026-04-03 Fri
+        closed[25] = 20598; // 2026-05-25 Mon
+        closed[26] = 20623; // 2026-06-19 Fri
+        closed[27] = 20637; // 2026-07-03 Fri
+        closed[28] = 20703; // 2026-09-07 Mon
+        closed[29] = 20783; // 2026-11-26 Thu
+        closed[30] = 20812; // 2026-12-25 Fri
+        closed[31] = 20819; // 2027-01-01 Fri
+        closed[32] = 20836; // 2027-01-18 Mon
+        closed[33] = 20864; // 2027-02-15 Mon
+        closed[34] = 20903; // 2027-03-26 Fri
+        closed[35] = 20969; // 2027-05-31 Mon
+        closed[36] = 20987; // 2027-06-18 Fri
+        closed[37] = 21004; // 2027-07-05 Mon
+        closed[38] = 21067; // 2027-09-06 Mon
+        closed[39] = 21147; // 2027-11-25 Thu
+        closed[40] = 21176; // 2027-12-24 Fri
+        closed[41] = 21200; // 2028-01-17 Mon
+        closed[42] = 21235; // 2028-02-21 Mon
+        closed[43] = 21288; // 2028-04-14 Fri
+        closed[44] = 21333; // 2028-05-29 Mon
+        closed[45] = 21354; // 2028-06-19 Mon
+        closed[46] = 21369; // 2028-07-04 Tue
+        closed[47] = 21431; // 2028-09-04 Mon
+        closed[48] = 21511; // 2028-11-23 Thu
+        closed[49] = 21543; // 2028-12-25 Mon
+        uint32[11] memory half;
+        half[0] = 19907; // 2024-07-03 Wed
+        half[1] = 20056; // 2024-11-29 Fri
+        half[2] = 20081; // 2024-12-24 Tue
+        half[3] = 20272; // 2025-07-03 Thu
+        half[4] = 20420; // 2025-11-28 Fri
+        half[5] = 20446; // 2025-12-24 Wed
+        half[6] = 20784; // 2026-11-27 Fri
+        half[7] = 20811; // 2026-12-24 Thu
+        half[8] = 21148; // 2027-11-26 Fri
+        half[9] = 21368; // 2028-07-03 Mon
+        half[10] = 21512; // 2028-11-24 Fri
+        for (uint256 i; i < closed.length; ++i) {
+            assertEq(cal.dayKind(closed[i]), cal.KIND_CLOSED(), "missing official holiday");
+        }
+        for (uint256 i; i < half.length; ++i) {
+            assertEq(cal.dayKind(half[i]), cal.KIND_HALF(), "missing official early close");
+        }
+        // tidak ada entri liar: jumlah tertanam = jumlah resmi
+        assertEq(CalendarFixture.closedDays().length, closed.length);
+        assertEq(CalendarFixture.halfDays().length, half.length);
+        // dan tabel deploy = fixture test
+        assertEq(keccak256(abi.encode(VigilParams.closedDays())), keccak256(abi.encode(CalendarFixture.closedDays())));
+        assertEq(keccak256(abi.encode(VigilParams.halfDays())), keccak256(abi.encode(CalendarFixture.halfDays())));
+    }
+
+    /// 1 Jan 2028 jatuh pada Sabtu: NYSE tidak mengobservasi libur — kalender pun tidak boleh menandai hari di sekitarnya.
+    function test_calendar_noObservedNewYear2028() public view {
+        assertEq(cal.dayKind(21183), 0); // 2027-12-31 Fri: hari perdagangan penuh
+        assertEq(cal.dayKind(21186), 0); // 2028-01-03 Mon: hari perdagangan penuh
     }
 }
