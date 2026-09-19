@@ -113,7 +113,7 @@ DST and holidays are exercised for real.
 git clone --recurse-submodules https://github.com/mdlog/vigil.git
 cd vigil
 forge build
-forge test                                   # 70 tests: unit, historical replay scenarios, invariants
+forge test                                   # 72 tests: unit, historical replay scenarios, invariants
 forge coverage --report summary --no-match-coverage "(test|script|mocks)"   # ≈93 % line coverage on src/
 ```
 
@@ -193,6 +193,13 @@ keeper, unwind bot) can only tighten and are not required for safety.
   leaves no bad debt.
 - **Time source** is `block.timestamp` only. On Nitro chains `block.number` is an L1 estimate that updates
   periodically and must never be used as a counter.
+- **Premium index accrual is a function of time, not of `block.timestamp`.** Keeper attestations are
+  accrued over their stored window `[issuedAt, issuedAt + 30 min)` even after they stop being fresh, so the
+  index is exact and poke-independent for calendar regimes and attestations alike. Tightenings derived from
+  external state (a stale feed inside `MARKET`, a corporate-action window) cannot be reconstructed after the
+  fact, so they are persisted only when a `poke` observes them and never enter the `premiumIndex` view — the
+  view is a monotone lower bound, and membership checks that read it cannot flip on their own. (Found by the
+  invariant fuzzer: an attestation expiring without a poke used to make the view *decrease*.)
 - The premium index is persisted on every `accrue` (internal `poke`).
 - `forge build` reports `unsafe-typecast` lints on casts that are already guarded (`answer > 0`, day index
   < 2³², USDG amounts < 2¹²⁸).
@@ -248,7 +255,7 @@ test/
 
 ## Status and roadmap
 
-- [x] MVP: 8 contracts, 70 tests, historical replay demo, deployment simulated on testnet 46630
+- [x] MVP: 8 contracts, 72 tests, historical replay demo, deployment simulated on testnet 46630
 - [x] On-chain verification of every mainnet dependency (table above)
 - [ ] Broadcast deployment to Robinhood Chain testnet
 - [ ] Full calibrator: POT/GPD weekend tail fit, backtest, gap-distribution charts

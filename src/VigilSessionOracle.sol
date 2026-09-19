@@ -285,30 +285,55 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
 
     // ───────────────────────── index premi (FR-7) ─────────────────────────
 
-    /// @dev Integrasi piecewise atas segmen kalender sejak `from`. Rezim efektif yang lebih ketat dari kalender
-    ///      (attested / rule 3 / CORP_ACTION) diterapkan hanya sejak `tightSince` — bukan sejak poke terakhir.
-    function _accrue(address asset, uint64 from, uint64 to) internal view returns (uint256 acc, uint64 reached) {
-        if (to <= from) return (0, from);
-        Regime tight = Regime.MARKET;
-        uint64 since = from;
-        if (configs[asset].registered) {
-            (Regime effective, Session memory now_,,, uint64 ts) = _effectiveSince(asset);
-            if (effective > now_.cal) {
-                tight = effective;
-                since = ts > from ? ts : from;
+    /// @dev Pengetatan di atas kalender sebagai fungsi waktu τ — bukan `block.timestamp` — agar integrand akrual
+    ///      tidak berubah setelah pengetatannya lenyap (INV-7: `premiumIndex` monoton, bebas timing poke).
+    ///      Attestation tersimpan on-chain → jendelanya [issuedAt, issuedAt + MAX_ATTESTATION_AGE) eksak, berlaku
+    ///      juga setelah tidak lagi segar. Pengetatan turunan (rule 3 / CORP_ACTION) bergantung state eksternal
+    ///      yang tidak bisa direkonstruksi → hanya dipersistenkan saat `_poke`, tidak pernah masuk view.
+    struct Tightening {
+        Regime attested;
+        uint64 attestedFrom;
+        uint64 attestedUntil;
+        Regime derived;
+        uint64 derivedFrom;
+    }
+
+    function _tightening(address asset, uint64 from, bool withDerived) internal view returns (Tightening memory tg) {
+        AttestState storage a = attestations[asset];
+        if (a.issuedAt != 0) {
+            tg.attested = Regime(a.regime);
+            tg.attestedFrom = a.issuedAt;
+            tg.attestedUntil = a.issuedAt + MAX_ATTESTATION_AGE;
+        }
+        if (withDerived && configs[asset].registered) {
+            (Regime d, Session memory s, uint64 since) = _derived(asset);
+            if (d > s.cal) {
+                tg.derived = d;
+                tg.derivedFrom = since > from ? since : from;
             }
         }
+    }
+
+    /// @dev Integrasi piecewise atas segmen kalender sejak `from`; ≤ MAX_SEGMENTS segmen per panggilan.
+    function _accrue(address asset, uint64 from, uint64 to, bool withDerived)
+        internal
+        view
+        returns (uint256 acc, uint64 reached)
+    {
+        if (to <= from) return (0, from);
+        Tightening memory tg = _tightening(asset, from, withDerived);
         uint64 t = from;
         for (uint256 i; i < MAX_SEGMENTS && t < to; ++i) {
-            (uint256 add, uint64 end) = _segment(asset, t, to, tight, since);
+            (uint256 add, uint64 end) = _segment(asset, t, to, tg);
             acc += add;
             t = end;
         }
         reached = t;
     }
 
-    /// @dev Akrual satu segmen kalender mulai `t` (dipotong pada `to`), dengan pengetatan `tight` sejak `since`.
-    function _segment(address asset, uint64 t, uint64 to, Regime tight, uint64 since)
+    /// @dev Akrual satu segmen kalender mulai `t` (dipotong pada `to`): rezim pada τ = max(kalender, pengetatan
+    ///      yang berlaku pada τ), diintegrasikan per sub-interval di antara titik potong pengetatan.
+    function _segment(address asset, uint64 t, uint64 to, Tightening memory tg)
         internal
         view
         returns (uint256 add, uint64 end)
@@ -316,13 +341,17 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
         Session memory s = calendar.sessionAt(t);
         end = s.segmentEnd < to ? s.segmentEnd : to;
         uint64 L = s.nextOpen - s.closeAt;
-        uint64 split = since > end ? end : (since < t ? t : since);
-        if (s.cal != Regime.MARKET && split > t) {
-            add += risk.premiumRefRatePerSecond(asset, s.cal, L) * (split - t);
-        }
-        if (end > split) {
-            Regime r = s.cal > tight ? s.cal : tight;
-            if (r != Regime.MARKET) add += risk.premiumRefRatePerSecond(asset, r, L) * (end - split);
+        uint64 x = t;
+        while (x < end) {
+            uint64 y = end;
+            if (tg.attestedFrom > x && tg.attestedFrom < y) y = tg.attestedFrom;
+            if (tg.attestedUntil > x && tg.attestedUntil < y) y = tg.attestedUntil;
+            if (tg.derivedFrom > x && tg.derivedFrom < y) y = tg.derivedFrom;
+            Regime r = s.cal;
+            if (x >= tg.attestedFrom && x < tg.attestedUntil && tg.attested > r) r = tg.attested;
+            if (x >= tg.derivedFrom && tg.derived > r) r = tg.derived;
+            if (r != Regime.MARKET) add += risk.premiumRefRatePerSecond(asset, r, L) * (y - x);
+            x = y;
         }
     }
 
@@ -333,14 +362,14 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
 
     function premiumIndex(address asset) external view returns (uint256) {
         IndexState storage st = idx[asset];
-        (uint256 acc,) = _accrue(asset, st.lastPoke, uint64(block.timestamp));
+        (uint256 acc,) = _accrue(asset, st.lastPoke, uint64(block.timestamp), false);
         return st.index + acc;
     }
 
     function _poke(address asset) internal returns (bool advanced) {
         IndexState storage st = idx[asset];
         uint64 prev = st.lastPoke;
-        (uint256 acc, uint64 reached) = _accrue(asset, prev, uint64(block.timestamp));
+        (uint256 acc, uint64 reached) = _accrue(asset, prev, uint64(block.timestamp), true);
         st.index += acc;
         st.lastPoke = reached;
         AssetConfig storage c = configs[asset];

@@ -276,6 +276,7 @@ contract VigilSessionOracleTest is Test {
         so.poke(address(nvda));
         uint256 base = so.premiumIndex(address(nvda));
         vm.warp(MON_0930 + 5 hours); // diam 5 jam sejak lastOpen → OVERNIGHT sejak 13:30
+        so.poke(address(nvda)); // pengetatan turunan masuk index saat dipersistenkan
         assertEq(so.premiumIndex(address(nvda)), base + 1 hours * 2e9);
         // attestation halt CLOSED pada 14:30 (closeAt = sekarang) → CLOSED sejak issuedAt, OVERNIGHT antara 13:30–14:30
         Session memory s = cal.sessionAt(MON_0930 + 5 hours);
@@ -290,6 +291,51 @@ contract VigilSessionOracleTest is Test {
         so.attest(a, _sign(a));
         vm.warp(MON_0930 + 5 hours + 20 minutes);
         assertEq(so.premiumIndex(address(nvda)), base + 1 hours * 2e9 + 20 minutes * 4e9);
+    }
+
+    /// INV-7: attestation yang kedaluwarsa tanpa poke tidak boleh menghilangkan segmen yang sudah terakru —
+    /// jendela attestation tersimpan on-chain, jadi akrualnya eksak dan tidak bergantung timing poke.
+    /// (Sekuens shrunk dari fuzzer, 19 Sep 2026: attest EXTENDED halt +1 s → +328 s → +2 467 s.)
+    function test_premiumIndex_monotoneAcrossAttestationExpiry() public {
+        Session memory s = cal.sessionAt(FRI_1500);
+        VigilSessionOracle.Attestation memory a = VigilSessionOracle.Attestation({
+            asset: address(nvda),
+            regime: uint8(Regime.EXTENDED),
+            closeAt: FRI_1500 + 1,
+            nextOpen: s.nextOpen,
+            issuedAt: FRI_1500,
+            deadline: FRI_1500 + 63
+        });
+        so.attest(a, _sign(a));
+        vm.warp(FRI_1500 + 328);
+        uint256 i1 = so.premiumIndex(address(nvda));
+        assertEq(i1, 328 * 1e9, "EXTENDED sejak issuedAt");
+        vm.warp(FRI_1500 + 2467); // > MAX_ATTESTATION_AGE: attestation tidak lagi segar
+        uint256 i2 = so.premiumIndex(address(nvda));
+        assertGe(i2, i1, "INV-7: index view turun setelah attestation kedaluwarsa");
+        assertEq(i2, 30 minutes * 1e9, "jendela attestation penuh, lalu kalender (MARKET = 0)");
+        so.poke(address(nvda)); // persist tanpa mengubah nilai: eksak, bebas timing poke
+        assertEq(so.premiumIndex(address(nvda)), 30 minutes * 1e9);
+        assertEq(uint8(_regime()), uint8(Regime.MARKET)); // rezim harga sudah kembali ke kalender
+    }
+
+    /// INV-7 untuk pengetatan turunan (rule 3): riwayat feed tidak bisa direkonstruksi setelah feed ter-update,
+    /// maka view hanya memuat yang bisa dibuktikan (kalender + attestation); `poke` mempersistenkan pengetatan
+    /// yang sedang teramati, dan nilai persist tidak pernah turun saat pengetatan itu lenyap.
+    function test_premiumIndex_derivedTighteningPersistsOnPokeOnly_andNeverReverts() public {
+        feed.set(100e8);
+        vm.warp(MON_0930);
+        so.poke(address(nvda));
+        uint256 base = so.premiumIndex(address(nvda));
+        vm.warp(MON_0930 + 5 hours); // diam 5 jam sejak lastOpen → OVERNIGHT sejak 13:30 (rule 3)
+        assertEq(so.premiumIndex(address(nvda)), base, "view: pengetatan turunan belum dipersistenkan");
+        so.poke(address(nvda));
+        uint256 persisted = so.premiumIndex(address(nvda));
+        assertEq(persisted, base + 1 hours * 2e9, "poke: OVERNIGHT diakru sejak ambang diam, bukan sejak lastPoke");
+        feed.set(100e8); // feed hidup lagi: pengetatan lenyap, yang sudah persist tidak boleh turun
+        assertEq(so.premiumIndex(address(nvda)), persisted, "INV-7: index turun setelah feed ter-update");
+        vm.warp(MON_0930 + 5 hours + 30 minutes);
+        assertEq(so.premiumIndex(address(nvda)), persisted, "MARKET dengan feed hidup tidak menambah index");
     }
 
     function test_pokeBounty_paidFromPool() public {
