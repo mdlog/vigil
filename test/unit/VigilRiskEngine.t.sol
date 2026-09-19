@@ -136,6 +136,65 @@ contract VigilRiskEngineTest is Test {
         assertApproxEqAbs(_h(), 496, 2);
     }
 
+    /// INV-3 / FR-3: pengetatan keeper di tengah penutupan kalender tidak pernah MENURUNKAN haircut. Ditemukan
+    /// fuzzer: attestation CLOSED pada 19:58 (EXTENDED, haircut penuh) membuat ramp mulai dari nol → harga
+    /// melompat naik, lalu turun 500 bps saat kalender ikut CLOSED 87 detik kemudian.
+    function test_keeperTighteningNeverLowersHaircut() public {
+        uint64 fri1958 = FRI_1400 + 5 hours + 58 minutes; // EXTENDED sejak 16:00, ramp selesai 15:30
+        vm.warp(fri1958);
+        uint256 before = _h();
+        assertApproxEqAbs(before, 977, 2);
+        VigilSessionOracle.Attestation memory a = VigilSessionOracle.Attestation({
+            asset: address(nvda),
+            regime: uint8(Regime.CLOSED),
+            closeAt: cal.sessionAt(fri1958).closeAt,
+            nextOpen: cal.sessionAt(fri1958).nextOpen,
+            issuedAt: fri1958,
+            deadline: fri1958 + 10 minutes
+        });
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(0xBEEF, so.hashAttestation(a));
+        so.attest(a, abi.encodePacked(r, s, v));
+        assertGe(_h(), before, "attestation lowered the haircut");
+        vm.warp(fri1958 + 87);
+        assertGe(_h(), before, "haircut dipped after the calendar caught up");
+        vm.warp(fri1958 + 31 minutes); // attestation kedaluwarsa: kalender CLOSED, haircut tetap
+        assertApproxEqAbs(_h(), 977, 2);
+    }
+
+    /// Pengetatan yang MEMPERPANJANG penutupan (nextOpen lebih lambat) menaikkan haircut secara ter-ramp,
+    /// mulai dari level kalender — bukan step dan bukan dari nol.
+    function test_keeperExtensionRampsUpFromCalendarLevel() public {
+        uint64 fri1958 = FRI_1400 + 5 hours + 58 minutes;
+        vm.warp(fri1958);
+        uint256 before = _h();
+        _attestDelayedOpen(fri1958, 1 days); // L 65,5 j → 89,5 j: H 977 → 1.133
+        assertEq(_h(), before, "no step at attestation");
+        vm.warp(fri1958 + 25 minutes);
+        _attestDelayedOpen(fri1958 + 25 minutes, 1 days); // keeper memperbarui sebelum kedaluwarsa: ramp berlanjut
+        vm.warp(fri1958 + 30 minutes);
+        uint256 mid = _h();
+        assertApproxEqAbs(mid, 977 + (1_133 - 977) / 2, 4); // separuh increment setelah 30 menit
+        vm.warp(fri1958 + 50 minutes);
+        _attestDelayedOpen(fri1958 + 50 minutes, 1 days);
+        vm.warp(fri1958 + 60 minutes);
+        assertApproxEqAbs(_h(), 1_133, 3); // increment penuh setelah RAMP_SECONDS sejak awal rantai
+        vm.warp(fri1958 + 81 minutes); // rantai putus: kembali ke kalender (kenaikan harga — diizinkan)
+        assertApproxEqAbs(_h(), 977, 2);
+    }
+
+    function _attestDelayedOpen(uint64 issuedAt, uint64 delay) internal {
+        VigilSessionOracle.Attestation memory a = VigilSessionOracle.Attestation({
+            asset: address(nvda),
+            regime: uint8(Regime.CLOSED),
+            closeAt: cal.sessionAt(issuedAt).closeAt,
+            nextOpen: cal.sessionAt(issuedAt).nextOpen + delay,
+            issuedAt: issuedAt,
+            deadline: issuedAt + 10 minutes
+        });
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(0xBEEF, so.hashAttestation(a));
+        so.attest(a, abi.encodePacked(r, s, v));
+    }
+
     function test_setSurface_guardsAndRamp() public {
         vm.startPrank(calibrator);
         VigilRiskEngine.Surface memory s = _surface(0.016e18);

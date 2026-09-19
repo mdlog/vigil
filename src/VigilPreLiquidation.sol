@@ -6,7 +6,14 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IMorpho, MarketParams, Id, Position} from "morpho-blue/interfaces/IMorpho.sol";
 import {MarketParamsLib} from "morpho-blue/libraries/MarketParamsLib.sol";
 import {MorphoBalancesLib} from "morpho-blue/libraries/periphery/MorphoBalancesLib.sol";
-import {Regime, IVigilSessionOracle, IVigilRiskEngine, IVigilOracle, IVigilPremium} from "./interfaces/IVigil.sol";
+import {
+    Regime,
+    Session,
+    IVigilSessionOracle,
+    IVigilRiskEngine,
+    IVigilOracle,
+    IVigilPremium
+} from "./interfaces/IVigil.sol";
 
 /// @title VigilPreLiquidation — soft unwind sadar-sesi (pola Morpho PreLiquidation, opt-in via setAuthorization) (PRD §8.6).
 /// @notice Ambang: LTV pada harga × (1 − H_soft) ≥ LLTV, dengan H_soft = max(H, cap + softMargin) — selalu lebih ketat
@@ -100,7 +107,11 @@ contract VigilPreLiquidation {
         uint64 pre = RISK.preCloseWindow();
         if (inClosure) {
             windowStart = closeAt > pre ? closeAt - pre : 0;
-            if (tightSince > windowStart) windowStart = tightSince;
+            // Jendela dihitung sejak penutupan DIMULAI: pengetatan yang hanya memperpanjang penutupan kalender
+            // (open ditunda) tidak me-reset diskon Dutch; halt ad-hoc / rule 3 memulai jendela pada tightSince.
+            Session memory cs = SESSION.calendar().sessionAt(uint64(block.timestamp));
+            bool calendarClosure = cs.cal != Regime.MARKET && closeAt == cs.closeAt;
+            if (!calendarClosure && tightSince > windowStart) windowStart = tightSince;
             if (windowStart > block.timestamp) windowStart = uint64(block.timestamp);
             return (true, windowStart);
         }

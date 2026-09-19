@@ -40,6 +40,7 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
         uint64 closeAt;
         uint64 nextOpen;
         uint64 issuedAt;
+        uint64 since; // awal rantai attestation berturut-turut: ramp pengetatan tidak di-reset oleh pembaruan
     }
 
     struct IndexState {
@@ -212,13 +213,16 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
             // sehingga haircut di-ramp menuju halt sejak attestation diterbitkan — tidak pernah step.
             if (block.timestamp >= a.closeAt && Regime(a.regime) > effective) {
                 effective = Regime(a.regime);
-                tightSince = a.issuedAt;
+                tightSince = a.since;
             }
             if (a.closeAt < closeAt) {
                 closeAt = a.closeAt;
-                tightSince = a.issuedAt;
+                tightSince = a.since;
             }
-            if (a.nextOpen > nextOpen) nextOpen = a.nextOpen;
+            if (a.nextOpen > nextOpen) {
+                nextOpen = a.nextOpen; // open ditunda: penutupan lebih panjang → pengetatan, di-ramp sejak awal rantai
+                tightSince = a.since;
+            }
             if (nextOpen > closeAt + MAX_CLOSED_HORIZON) nextOpen = closeAt + MAX_CLOSED_HORIZON;
         }
     }
@@ -279,7 +283,9 @@ contract VigilSessionOracle is IVigilSessionOracle, EIP712 {
         if (a.closeAt + MAX_CLOSED_HORIZON < block.timestamp) revert NotTightening();
         if (a.nextOpen > a.closeAt + MAX_CLOSED_HORIZON) revert HorizonTooFar();
         _poke(a.asset); // akru rezim lama sampai sekarang sebelum pengetatan berlaku
-        attestations[a.asset] = AttestState(a.regime, a.closeAt, a.nextOpen, a.issuedAt);
+        (bool stillFresh, AttestState storage prev) = _attestFresh(a.asset);
+        uint64 since = stillFresh ? prev.since : a.issuedAt;
+        attestations[a.asset] = AttestState(a.regime, a.closeAt, a.nextOpen, a.issuedAt, since);
         emit Attested(a.asset, a.regime, a.closeAt, a.nextOpen, keeperSigner);
     }
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {Regime, IVigilSessionOracle, IVigilRiskEngine} from "./interfaces/IVigil.sol";
+import {Regime, Session, IVigilSessionOracle, IVigilRiskEngine} from "./interfaces/IVigil.sol";
 
 /// @title VigilRiskEngine — risk surface per aset: haircut ter-ramp sebagai fungsi durasi penutupan L,
 ///        event terjadwal, tabel premi referensi π_ref(L) dan pengali buffer m(b) (PRD §6, §8.2).
@@ -196,41 +196,73 @@ contract VigilRiskEngine is IVigilRiskEngine {
         return e.until != 0 && ts >= e.from && ts <= e.until;
     }
 
-    /// @dev Bentuk kalender pada `now`: (faktor ramp, L) untuk penutupan aktif/mendekat dan (faktor, L) untuk
-    ///      ramp-out penutupan sebelumnya. Faktor dalam WAD.
-    function _calShape(address asset) internal view returns (uint256 fIn, uint64 L, uint256 fOut, uint64 Lprev) {
+    /// @dev Bentuk haircut pada `now`, dalam faktor ramp WAD:
+    ///      (fIn, L)        — penutupan KALENDER yang aktif/mendekat, di-ramp sejak closeAt − PRE_CLOSE_WINDOW;
+    ///      (fTight, Lt)    — penutupan EFEKTIF bila lebih ketat (attestation keeper / rule 3), di-ramp sejak
+    ///                        `tightSince`; hanya pernah MENAMBAH di atas bentuk kalender, tidak pernah mengurangi
+    ///                        (ditemukan fuzzer: ramp yang dimulai ulang dari nol saat attestation membuat harga
+    ///                        melompat naik lalu turun 500 bps saat kalender menyusul — INV-3);
+    ///      (fOut, Lprev)   — ramp-out penutupan sebelumnya setelah open.
+    function _calShape(address asset)
+        internal
+        view
+        returns (uint256 fIn, uint64 L, uint256 fTight, uint64 Lt, uint256 fOut, uint64 Lprev)
+    {
         (uint64 closeAt, uint64 nextOpen, bool inClosure, uint64 lastOpen, uint64 prevClose, uint64 tightSince) =
             SESSION.closureOf(asset);
+        Session memory cs = SESSION.calendar().sessionAt(uint64(block.timestamp));
         uint64 now_ = uint64(block.timestamp);
-        if (inClosure) {
-            L = nextOpen - closeAt;
+        // 1) kalender saja
+        if (cs.cal != Regime.MARKET) {
+            L = cs.nextOpen - cs.closeAt;
+            fIn = _ramp(now_, cs.closeAt > PRE_CLOSE_WINDOW ? cs.closeAt - PRE_CLOSE_WINDOW : 0);
+        } else {
+            if (
+                cs.lastOpen != 0 && now_ >= cs.lastOpen && now_ - cs.lastOpen < RAMP_SECONDS
+                    && cs.lastOpen > cs.prevClose
+            ) {
+                Lprev = cs.lastOpen - cs.prevClose;
+                fOut = WAD - (uint256(now_ - cs.lastOpen) * WAD) / RAMP_SECONDS;
+            }
+            if (cs.closeAt > now_ && cs.closeAt - now_ <= PRE_CLOSE_WINDOW) {
+                L = cs.nextOpen - cs.closeAt;
+                fIn = _ramp(now_, cs.closeAt - PRE_CLOSE_WINDOW);
+            }
+        }
+        // 2) pengetatan efektif di atas kalender (halt lebih awal, open lebih lambat, rezim lebih ketat)
+        bool tighter = inClosure && (cs.cal == Regime.MARKET || closeAt != cs.closeAt || nextOpen != cs.nextOpen);
+        bool haltAhead = !inClosure && closeAt > now_ && closeAt < cs.closeAt && closeAt - now_ <= PRE_CLOSE_WINDOW;
+        if (tighter || haltAhead) {
+            Lt = nextOpen - closeAt;
             uint64 start = closeAt > PRE_CLOSE_WINDOW ? closeAt - PRE_CLOSE_WINDOW : 0;
             if (tightSince > start) start = tightSince; // halt keeper / rule 3 di-ramp sejak mulai berlaku
-            fIn =
-                now_ <= start ? 0 : (now_ - start >= RAMP_SECONDS ? WAD : (uint256(now_ - start) * WAD) / RAMP_SECONDS);
-            return (fIn, L, 0, 0);
+            fTight = _ramp(now_, start);
         }
-        // MARKET efektif: ramp-out penutupan sebelumnya
-        if (lastOpen != 0 && now_ >= lastOpen && now_ - lastOpen < RAMP_SECONDS && lastOpen > prevClose) {
-            Lprev = lastOpen - prevClose;
-            fOut = WAD - (uint256(now_ - lastOpen) * WAD) / RAMP_SECONDS;
-        }
-        // ramp-in penutupan mendekat (halt keeper terjadwal di-ramp sejak attestation diterbitkan)
-        if (closeAt > now_ && closeAt - now_ <= PRE_CLOSE_WINDOW) {
-            L = nextOpen - closeAt;
-            uint64 start = closeAt - PRE_CLOSE_WINDOW;
-            if (tightSince > start) start = tightSince;
-            fIn =
-                now_ <= start ? 0 : (now_ - start >= RAMP_SECONDS ? WAD : (uint256(now_ - start) * WAD) / RAMP_SECONDS);
-        }
+        lastOpen;
+        prevClose;
     }
 
-    function _shapedHaircut(Surface memory sf, uint256 fIn, uint64 L, uint256 fOut, uint64 Lprev, uint256 mult)
-        internal
-        pure
-        returns (uint256 h)
-    {
+    function _ramp(uint64 now_, uint64 start) internal pure returns (uint256) {
+        if (now_ <= start) return 0;
+        return now_ - start >= RAMP_SECONDS ? WAD : (uint256(now_ - start) * WAD) / RAMP_SECONDS;
+    }
+
+    function _shapedHaircut(
+        Surface memory sf,
+        uint256 fIn,
+        uint64 L,
+        uint256 fTight,
+        uint64 Lt,
+        uint256 fOut,
+        uint64 Lprev,
+        uint256 mult
+    ) internal pure returns (uint256 h) {
         if (fIn != 0) h = closureHaircutBps(sf, L, mult) * fIn / WAD;
+        if (fTight != 0) {
+            // pengetatan = tambahan ter-ramp DI ATAS level kalender: h_kal + (H_ketat − h_kal)·f
+            uint256 ht = closureHaircutBps(sf, Lt, mult);
+            if (ht > h) h += (ht - h) * fTight / WAD;
+        }
         if (fOut != 0) {
             uint256 hp = closureHaircutBps(sf, Lprev, mult) * fOut / WAD;
             if (hp > h) h = hp;
@@ -250,13 +282,13 @@ contract VigilRiskEngine is IVigilRiskEngine {
     function haircutBps(address asset) external view returns (uint16) {
         Surface memory sf = surfaces[asset];
         if (sf.updatedAt == 0) return 0;
-        (uint256 fIn, uint64 L, uint256 fOut, uint64 Lprev) = _calShape(asset);
-        if (fIn == 0 && fOut == 0) return 0;
+        (uint256 fIn, uint64 L, uint256 fTight, uint64 Lt, uint256 fOut, uint64 Lprev) = _calShape(asset);
+        if (fIn == 0 && fTight == 0 && fOut == 0) return 0;
         uint256 mult = eventMultBpsAt(asset, uint64(block.timestamp));
-        uint256 h = _shapedHaircut(sf, fIn, L, fOut, Lprev, mult);
+        uint256 h = _shapedHaircut(sf, fIn, L, fTight, Lt, fOut, Lprev, mult);
         uint64 rs = rampStart[asset];
         if (rs != 0 && block.timestamp - rs < RAMP_SECONDS) {
-            uint256 hp = _shapedHaircut(prevSurfaces[asset], fIn, L, fOut, Lprev, mult);
+            uint256 hp = _shapedHaircut(prevSurfaces[asset], fIn, L, fTight, Lt, fOut, Lprev, mult);
             uint256 p = (block.timestamp - rs) * WAD / RAMP_SECONDS;
             h = hp + (h * p) / WAD - (hp * p) / WAD; // lerp tanpa underflow
         }
