@@ -1,3 +1,5 @@
+<p align="center"><img src="web/public/logo-vigil.png" alt="Vigil" width="220"></p>
+
 # Vigil
 
 [![CI](https://github.com/mdlog/vigil/actions/workflows/test.yml/badge.svg)](https://github.com/mdlog/vigil/actions/workflows/test.yml)

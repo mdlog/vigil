@@ -32,10 +32,11 @@ const TERMINAL_W = 740;
 const CHAIN_ID = 46630;
 
 const TERMINAL_HTML = fs.readFileSync(path.join(VIDEO_DIR, "terminal.html"), "utf8");
-// Chart cards embed the calibrator's PNGs as data URIs: the cards load as an iframe srcdoc, where relative paths do not resolve.
-const CARDS_HTML = fs.readFileSync(path.join(VIDEO_DIR, "cards.html"), "utf8").replace(/\{\{img:([\w.-]+)\}\}/g, (_, f: string) => {
-  const png = path.join(REPO, "calibrator", "out", f);
-  if (!fs.existsSync(png)) throw new Error(`card image missing: ${png} — run the calibrator first`);
+// Cards embed their images as data URIs (they load as an iframe srcdoc, where relative paths do not resolve):
+// `{{img:name.png}}` is a calibrator chart (calibrator/out), `{{img:dir/file.png}}` a path from the repo root.
+const CARDS_HTML = fs.readFileSync(path.join(VIDEO_DIR, "cards.html"), "utf8").replace(/\{\{img:([\w./-]+)\}\}/g, (_, f: string) => {
+  const png = f.includes("/") ? path.join(REPO, f) : path.join(REPO, "calibrator", "out", f);
+  if (!fs.existsSync(png)) throw new Error(`card image missing: ${png}${f.includes("/") ? "" : " — run the calibrator first"}`);
   return `data:image/png;base64,${fs.readFileSync(png).toString("base64")}`;
 });
 const FORGE_CMD = `forge script script/E2E.s.sol --rpc-url ${RPC} --broadcast --slow --gas-estimate-multiplier 200 -vv`;

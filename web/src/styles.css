@@ -84,12 +84,7 @@ a { color: var(--accent); }
 /* ───────────────────────── header ───────────────────────── */
 .site-header { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; justify-content: space-between; padding: 4px 2px; }
 .brand { display: flex; gap: 14px; align-items: center; }
-.brand-mark {
-  width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center;
-  font-family: var(--mono); font-weight: 600; font-size: 20px;
-  color: var(--bg); background: var(--accent);
-  box-shadow: 0 0 0 1px var(--line-strong), 0 10px 30px -10px var(--accent);
-}
+.brand-mark { width: 52px; height: 52px; display: block; object-fit: contain; filter: drop-shadow(0 8px 18px rgba(64, 121, 253, 0.35)); }
 .brand h1 { margin: 0; font-size: 24px; letter-spacing: -0.02em; font-weight: 600; }
 .tagline { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
 .header-right { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }

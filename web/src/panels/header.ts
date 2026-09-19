@@ -8,7 +8,7 @@ export function createHeader(): Panel {
   const statusText = status.querySelector('.badge-text')!;
   const root = el('header', { class: 'site-header reveal' },
     el('div', { class: 'brand' },
-      el('span', { class: 'brand-mark', 'aria-hidden': 'true', text: 'V' }),
+      el('img', { class: 'brand-mark', src: './vigil-mark.png', alt: '', width: 52, height: 52 }),
       el('div', {},
         el('h1', { text: 'Vigil' }),
         el('p', { class: 'tagline', text: 'Session-aware collateral risk for tokenized equity on Morpho Blue' }),
