@@ -26,6 +26,7 @@
 - [Deployment](#deployment)
 - [Live deployment — Robinhood Chain testnet](#live-deployment--robinhood-chain-testnet-chain-id-46630)
 - [End-to-end run on the live testnet](#end-to-end-run-on-the-live-testnet)
+- [Mainnet fork: the real dependencies, no mocks](#mainnet-fork-the-real-dependencies-no-mocks)
 - [Dashboard](#dashboard)
 - [Default parameters](#default-parameters)
 - [Roles and trust assumptions](#roles-and-trust-assumptions)
@@ -225,6 +226,31 @@ forge script script/E2E.s.sol --rpc-url robinhood_testnet --broadcast --slow --g
 
 The same script runs against an Anvil fork of the testnet (`anvil --fork-url robinhood_testnet --chain-id 46630 --block-time 2`) for free. `video/` records a run from the public dashboard and narrates it from the numbers it produced — see [`video/README.md`](video/README.md); the recorded take was filmed against deployment v1 (same script, same numbers).
 
+### Mainnet fork: the real dependencies, no mocks
+
+`test/fork/MainnetFork.t.sol` forks Robinhood Chain **mainnet** (4663) at the latest block and runs Vigil against the real Morpho Blue, AdaptiveCurveIRM, USDG (Paxos proxy), the NVDA stock token (ERC-8056 beacon proxy — real `uiMultiplier` 1.000775, `effectiveAt`, `oraclePaused`) and the Chainlink NVDA/USD and USDG/USD feeds. Balances are created with `deal` on the local copy; nothing is broadcast and nothing costs gas.
+
+```bash
+FOUNDRY_PROFILE=fork FOUNDRY_FORK_TESTS=1 forge test --match-path test/fork/MainnetFork.t.sol -vv
+```
+
+| Test | What it proves on real state (2026-09-19, a Saturday) |
+|---|---|
+| `frozenRealFeedIsUsableAndHaircutApplies` | the Chainlink feed last updated Friday 15:55 ET (222.45 USD) is *usable*, and `price()` = feed ÷ USDG/USD × (1 − 5 %) |
+| `realStockTokenFlagsDriveCorpAction` | the real token's dividend multiplier and past `effectiveAt` do not trigger `CORP_ACTION`; only `oraclePaused()` (injected) makes the oracle revert |
+| `weekendGapCycleOnRealMorpho` | supply → borrow (1,815 USDG per 10 NVDA at the haircut price) → membership → backstop → Bob unwound to 80 % LTV → Monday 09:30 ET with the feed still frozen (6-hour grace) and the weekend haircut ramping out (500 bps at +10 min, 244 bps at +45 min) → −14.18 % gap injected → Erin's 31.20 USDG shortfall paid by the backstop, Bob needs no cover, suppliers untouched — on the real Morpho with the real IRM |
+
+Two injections only, both named in the test: the gap price (the real feed cannot be moved) and a fresh `updatedAt` for the USDG/USD feed after `vm.warp` (on the real chain it keeps updating). The public RPC is not an archive node (state for roughly the last 1,000 blocks), so the fork pins the latest block and Foundry's cache carries later runs; `FORK_BLOCK=<n>` pins a block explicitly. The tests skip without `FOUNDRY_FORK_TESTS=1`, so CI stays offline. The `fork` profile sets `evm_version = "cancun"` because mainnet contracts use `PUSH0`.
+
+The mainnet deployment path simulates end to end against the same real dependencies (no key needed):
+
+```bash
+MORPHO=0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010 IRM=0x2BD3d5965B26B51814AC95127B2b80dD6CcC0fa1 \
+USDG=0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168 STOCK_TOKEN=0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC \
+FEED=0x379EC4f7C378F34a1B47E4F3cbeBCbAC3E8E9F15 USDG_FEED=0x61B7e5650328764B076A108EFF5fa7282a1B9aD2 \
+FOUNDRY_PROFILE=fork forge script script/Deploy.s.sol --rpc-url robinhood_mainnet
+```
+
 ## Default parameters
 
 Calibrated from four years of NVDA close-to-open returns (Sep 2022 – Sep 2026); see `script/DeployLib.sol`.
@@ -331,6 +357,7 @@ web/
   src/                       static dashboard (see Dashboard); src/abi is generated from out/
 video/                       records an E2E run from the dashboard and narrates it (video/README.md)
 test/
+  fork/                      mainnet-fork suite against the real Morpho, USDG, NVDA token and Chainlink feeds
   unit/                      one suite per contract
   scenarios/                 historical replays (5 Aug 2024, 27 Jan 2025) and cover paths
   invariants/                fuzzed handler: INV-1, 3, 4, 7, 11, 12
@@ -343,6 +370,7 @@ test/
 - [x] Live on Robinhood Chain testnet 46630 (addresses above)
 - [x] Live dashboard on GitHub Pages
 - [x] End-to-end run on the live testnet (37 transactions, recorded)
+- [x] Mainnet-fork suite against the real dependencies; mainnet deployment simulated
 - [ ] Full calibrator: POT/GPD weekend tail fit, backtest, gap-distribution charts
 - [ ] Re-verify the embedded NYSE calendar against nyse.com (V15)
 - [ ] Off-chain services: session keeper (attestations) and unwind bot

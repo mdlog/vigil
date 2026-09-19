@@ -13,6 +13,11 @@ remappings = [
 ]
 fs_permissions = [{ access = "read", path = "./" }]
 
+# Fork tests against Robinhood Chain mainnet: its contracts use PUSH0, so the fork EVM must be Shanghai+.
+#   FOUNDRY_PROFILE=fork FOUNDRY_FORK_TESTS=1 forge test --match-path test/fork/MainnetFork.t.sol -vv
+[profile.fork]
+evm_version = "cancun"
+
 [fuzz]
 runs = 256
 
