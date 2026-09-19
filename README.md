@@ -27,6 +27,7 @@
 - [Live deployment — Robinhood Chain testnet](#live-deployment--robinhood-chain-testnet-chain-id-46630)
 - [End-to-end run on the live testnet](#end-to-end-run-on-the-live-testnet)
 - [Mainnet fork: the real dependencies, no mocks](#mainnet-fork-the-real-dependencies-no-mocks)
+- [Calibration](#calibration)
 - [Dashboard](#dashboard)
 - [Default parameters](#default-parameters)
 - [Roles and trust assumptions](#roles-and-trust-assumptions)
@@ -251,9 +252,21 @@ FEED=0x379EC4f7C378F34a1B47E4F3cbeBCbAC3E8E9F15 USDG_FEED=0x61B7e5650328764B076A
 FOUNDRY_PROFILE=fork forge script script/Deploy.s.sol --rpc-url robinhood_mainnet
 ```
 
+## Calibration
+
+`calibrator/` holds the data and the two-stage calibration behind every number above: four years of daily close-to-open gaps for NVDA, AAPL and TSLA (Sep 2022 – Sep 2026), split by regime, with Student-t and peaks-over-threshold tails, and a backtest that replays the **on-chain** model (its integer arithmetic is replicated and checked against `test/unit/CurveFixture.t.sol`) over every closure.
+
+![NVDA overnight gaps by regime](calibrator/out/nvda_gap_distribution.png)
+
+The one fact that explains the product: in four years of NVDA, both gaps that would have produced bad debt at 86 % LLTV were Monday opens (5 Aug 2024 −14.2 %, 27 Jan 2025 −12.5 %). With the deployed surface and the 500 bps market cap the buffer of a max-LTV position during a closure grows from 10.23 % to 14.72 %, and **no closure of NVDA, AAPL or TSLA in the sample produced bad debt on a Vigil market** — the plain market took three. The residual tail beyond 14.72 % is what the premium and the backstop are for; `calibrator/report_full.md` gives its probability per weekend from the GPD fit and compares the collected premium with the expected loss under three estimators (the honest answer is a wide band, which is why the tables stay adjustable by the calibrator role).
+
+![NVDA backtest of the on-chain model](calibrator/out/nvda_backtest.png)
+
+Reproduce: `pip install -r calibrator/requirements.txt && python calibrator/full_calibration.py --offline` (see `calibrator/README.md`).
+
 ## Default parameters
 
-Calibrated from four years of NVDA close-to-open returns (Sep 2022 – Sep 2026); see `script/DeployLib.sol`.
+Calibrated from four years of NVDA close-to-open returns (Sep 2022 – Sep 2026); see `script/DeployLib.sol` and [Calibration](#calibration).
 
 | Parameter | Value | Note |
 |---|---|---|
@@ -356,6 +369,7 @@ script/
 web/
   src/                       static dashboard (see Dashboard); src/abi is generated from out/
 video/                       records an E2E run from the dashboard and narrates it (video/README.md)
+calibrator/                  data, quick + full calibration, backtest, charts (calibrator/README.md)
 test/
   fork/                      mainnet-fork suite against the real Morpho, USDG, NVDA token and Chainlink feeds
   unit/                      one suite per contract
@@ -371,7 +385,7 @@ test/
 - [x] Live dashboard on GitHub Pages
 - [x] End-to-end run on the live testnet (37 transactions, recorded)
 - [x] Mainnet-fork suite against the real dependencies; mainnet deployment simulated
-- [ ] Full calibrator: POT/GPD weekend tail fit, backtest, gap-distribution charts
+- [x] Full calibrator: POT/GPD weekend tail fit, backtest of the on-chain model, gap-distribution charts
 - [ ] Re-verify the embedded NYSE calendar against nyse.com (V15)
 - [ ] Off-chain services: session keeper (attestations) and unwind bot
 
