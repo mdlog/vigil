@@ -8,9 +8,9 @@ describe('deployment manifest', () => {
   });
   it('has a checksummed address for all 13 contracts', () => {
     for (const name of CONTRACT_ORDER) expect(ADDR[name]).toMatch(/^0x[0-9a-fA-F]{40}$/);
-    expect(ADDR.VigilOracle).toBe('0x351Ca8799D409F3BF37b147928fEE756ee96cA72');
+    expect(ADDR.VigilOracle).toBe('0x445A820a0F3AeE54E43715620938e71b04a2974e');
   });
   it('exposes the market id', () => {
-    expect(MARKET_ID).toBe('0x182f57bc84c43b38fb6ec7df529b9e274cd32bd833161d5df5419a126ad7265d');
+    expect(MARKET_ID).toBe('0x4b7339b6469bf06ff83ec7ec4baa995f2589ae7782d11b2ba6d02c2c218a5145');
   });
 });

@@ -25,6 +25,7 @@
 - [Getting started](#getting-started)
 - [Deployment](#deployment)
 - [Live deployment — Robinhood Chain testnet](#live-deployment--robinhood-chain-testnet-chain-id-46630)
+- [End-to-end run on the live testnet](#end-to-end-run-on-the-live-testnet)
 - [Dashboard](#dashboard)
 - [Default parameters](#default-parameters)
 - [Roles and trust assumptions](#roles-and-trust-assumptions)
@@ -83,7 +84,7 @@ the seizure, so Morpho never realizes bad debt and suppliers are kept whole.
 | `VigilPreLiquidation` | Morpho PreLiquidation pattern (opt-in via `setAuthorization`), session-aware threshold, partial unwind to a target LTV. |
 | `VigilLossReporter` | `liquidateWithCover`: the backstop repays a member's shortfall *before* seizure in one transaction — Morpho never realizes bad debt. |
 
-Every contract is immutable: no proxies, no pause switch, each under 13 KB of runtime bytecode.
+Every contract is immutable: no proxies, no pause switch, the largest 13.1 KB of runtime bytecode (limit 24 KB).
 
 ## Demo: replaying two real Mondays
 
@@ -129,7 +130,7 @@ npm run abi            # regenerate src/abi from ../out after `forge build`
 git clone --recurse-submodules https://github.com/mdlog/vigil.git
 cd vigil
 forge build
-forge test                                   # 72 tests: unit, historical replay scenarios, invariants
+forge test                                   # 77 tests: unit, historical replay scenarios, invariants, fuzz regressions
 forge coverage --report summary --no-match-coverage "(test|script|mocks)"   # ≈93 % line coverage on src/
 ```
 
@@ -174,33 +175,55 @@ forge script script/Deploy.s.sol --rpc-url robinhood_testnet --broadcast
 
 ### Live deployment — Robinhood Chain testnet (chain ID 46630)
 
-Deployed 2026-09-19 from `0x90351bB1E85a17D5f70c62C0cC076D39D897076D` (also `guardian`, `calibrator` and `keeperSigner`), 26 transactions, 26.66 M gas. Full manifest with transaction hashes: [`deployments/robinhood-testnet-46630.json`](deployments/robinhood-testnet-46630.json); Foundry broadcast log under `broadcast/Deploy.s.sol/46630/`.
+Deployed 2026-09-19 from `0x90351bB1E85a17D5f70c62C0cC076D39D897076D` (also `guardian`, `calibrator` and `keeperSigner`), 26 transactions, 28.14 M gas. Full manifest with transaction hashes: [`deployments/robinhood-testnet-46630.json`](deployments/robinhood-testnet-46630.json); Foundry broadcast log under `broadcast/Deploy.s.sol/46630/`. The first deployment of the day (before the tightening-ramp fix, see Design notes) is kept as [`deployments/robinhood-testnet-46630-v1.json`](deployments/robinhood-testnet-46630-v1.json) because the recorded end-to-end run below was filmed against it.
 
 | Contract | Address |
 |---|---|
-| `VigilCalendar` | [`0xC9a9EC2b905b8AC8C95f7217FD909450475FEC51`](https://explorer.testnet.chain.robinhood.com/address/0xC9a9EC2b905b8AC8C95f7217FD909450475FEC51) |
-| `VigilSessionOracle` | [`0x06A7A6a1234ccf89400CDc554B57b556bc8A3c0b`](https://explorer.testnet.chain.robinhood.com/address/0x06A7A6a1234ccf89400CDc554B57b556bc8A3c0b) |
-| `VigilRiskEngine` | [`0xC1edF7f0D1dBB008efe467cc22D018c88d0a3159`](https://explorer.testnet.chain.robinhood.com/address/0xC1edF7f0D1dBB008efe467cc22D018c88d0a3159) |
-| `VigilOracle` | [`0x351Ca8799D409F3BF37b147928fEE756ee96cA72`](https://explorer.testnet.chain.robinhood.com/address/0x351Ca8799D409F3BF37b147928fEE756ee96cA72) |
-| `VigilPremium` | [`0xf1e5f5C05063308c62b58F72DdE838Ca9F3A66a4`](https://explorer.testnet.chain.robinhood.com/address/0xf1e5f5C05063308c62b58F72DdE838Ca9F3A66a4) |
-| `VigilBackstop` | [`0x3149bb2A5e58D792722673821A15BeC0fE6E7Ca7`](https://explorer.testnet.chain.robinhood.com/address/0x3149bb2A5e58D792722673821A15BeC0fE6E7Ca7) |
-| `VigilPreLiquidation` | [`0x6D7F2a581116354D4ad3CE2F7672dFC0c2DAD700`](https://explorer.testnet.chain.robinhood.com/address/0x6D7F2a581116354D4ad3CE2F7672dFC0c2DAD700) |
-| `VigilLossReporter` | [`0x7DCA6E034C02d5Bb62FCF38227664AD8Fa220ea2`](https://explorer.testnet.chain.robinhood.com/address/0x7DCA6E034C02d5Bb62FCF38227664AD8Fa220ea2) |
-| Morpho Blue (deployed from source — testnet has none) | [`0x8F78d8E2d0DB49E048606A91479E6309D869ae22`](https://explorer.testnet.chain.robinhood.com/address/0x8F78d8E2d0DB49E048606A91479E6309D869ae22) |
-| MockUSDG (loan token, 6 decimals) | [`0x4Aa9186FfA5CAe49F641C51B405ac1850a64D8Fd`](https://explorer.testnet.chain.robinhood.com/address/0x4Aa9186FfA5CAe49F641C51B405ac1850a64D8Fd) |
-| MockStockToken NVDA (ERC-8056 mock, collateral) | [`0x15488fb7764e29F8C587B604E4aD7e89C37687c4`](https://explorer.testnet.chain.robinhood.com/address/0x15488fb7764e29F8C587B604E4aD7e89C37687c4) |
-| MockFeed NVDA/USD (8 decimals) | [`0xaF0F38314f76a1dd15576bbd60Dc12FF95df209b`](https://explorer.testnet.chain.robinhood.com/address/0xaF0F38314f76a1dd15576bbd60Dc12FF95df209b) |
-| MockIRM | [`0x5cCf601F2853729E7d4b33C9D9f52FC40aC3615C`](https://explorer.testnet.chain.robinhood.com/address/0x5cCf601F2853729E7d4b33C9D9f52FC40aC3615C) |
+| `VigilCalendar` | [`0x3Ffe81615B8B1909f684e9a7c1Eb82a38c0A0b8C`](https://explorer.testnet.chain.robinhood.com/address/0x3Ffe81615B8B1909f684e9a7c1Eb82a38c0A0b8C) |
+| `VigilSessionOracle` | [`0x575a54Bc6D25e19b60Fc67B5cCea09Bfee12a0fD`](https://explorer.testnet.chain.robinhood.com/address/0x575a54Bc6D25e19b60Fc67B5cCea09Bfee12a0fD) |
+| `VigilRiskEngine` | [`0xb92B73E35C740F2893c949110A742E31554fc2aE`](https://explorer.testnet.chain.robinhood.com/address/0xb92B73E35C740F2893c949110A742E31554fc2aE) |
+| `VigilOracle` | [`0x445A820a0F3AeE54E43715620938e71b04a2974e`](https://explorer.testnet.chain.robinhood.com/address/0x445A820a0F3AeE54E43715620938e71b04a2974e) |
+| `VigilPremium` | [`0xFb3E7B6b169FDF655d76D6984A895bFA4703Bb70`](https://explorer.testnet.chain.robinhood.com/address/0xFb3E7B6b169FDF655d76D6984A895bFA4703Bb70) |
+| `VigilBackstop` | [`0x27873298da0D56c3EFB17bdF7a39e1C4808149b9`](https://explorer.testnet.chain.robinhood.com/address/0x27873298da0D56c3EFB17bdF7a39e1C4808149b9) |
+| `VigilPreLiquidation` | [`0x824a6d52Ad196796BfeA76b8754fddC111F70b07`](https://explorer.testnet.chain.robinhood.com/address/0x824a6d52Ad196796BfeA76b8754fddC111F70b07) |
+| `VigilLossReporter` | [`0x740c6CA8C04C5f528Db86f1779A467bf91424984`](https://explorer.testnet.chain.robinhood.com/address/0x740c6CA8C04C5f528Db86f1779A467bf91424984) |
+| Morpho Blue (deployed from source — testnet has none) | [`0x62ded950D641CbDC935eB6F28Be19912c84afAd9`](https://explorer.testnet.chain.robinhood.com/address/0x62ded950D641CbDC935eB6F28Be19912c84afAd9) |
+| MockUSDG (loan token, 6 decimals) | [`0xf6349DfD96DAbdf6ed596f25e272060E5E6860EF`](https://explorer.testnet.chain.robinhood.com/address/0xf6349DfD96DAbdf6ed596f25e272060E5E6860EF) |
+| MockStockToken NVDA (ERC-8056 mock, collateral) | [`0x78E2A9b5a2e725B4fCFeA23Cb4f9Aa8232491f90`](https://explorer.testnet.chain.robinhood.com/address/0x78E2A9b5a2e725B4fCFeA23Cb4f9Aa8232491f90) |
+| MockFeed NVDA/USD (8 decimals) | [`0xa21b9aaa5E7074E7171Cb8B3b166BcFAba36e9C3`](https://explorer.testnet.chain.robinhood.com/address/0xa21b9aaa5E7074E7171Cb8B3b166BcFAba36e9C3) |
+| MockIRM | [`0xa41Bfe7f75719bA17aE7046929dF7a89E580Dbc3`](https://explorer.testnet.chain.robinhood.com/address/0xa41Bfe7f75719bA17aE7046929dF7a89E580Dbc3) |
 
-Morpho market NVDA/USDG, LLTV 86 %: id `0x182f57bc84c43b38fb6ec7df529b9e274cd32bd833161d5df5419a126ad7265d`.
+Morpho market NVDA/USDG, LLTV 86 %: id `0x4b7339b6469bf06ff83ec7ec4baa995f2589ae7782d11b2ba6d02c2c218a5145`.
 
 Quick liveness check (the oracle answers with the session-aware price — on a weekend it reads `CLOSED` and applies the 500 bps cap):
 
 ```bash
 RPC=https://rpc.testnet.chain.robinhood.com
-cast call 0x351Ca8799D409F3BF37b147928fEE756ee96cA72 "price()(uint256)" --rpc-url $RPC
-cast call 0x06A7A6a1234ccf89400CDc554B57b556bc8A3c0b "regimeOf(address)(uint8,uint8,uint64,uint64)" 0x15488fb7764e29F8C587B604E4aD7e89C37687c4 --rpc-url $RPC
+cast call 0x445A820a0F3AeE54E43715620938e71b04a2974e "price()(uint256)" --rpc-url $RPC
+cast call 0x575a54Bc6D25e19b60Fc67B5cCea09Bfee12a0fD "regimeOf(address)(uint8,uint8,uint64,uint64)" 0x78E2A9b5a2e725B4fCFeA23Cb4f9Aa8232491f90 --rpc-url $RPC
 ```
+
+### End-to-end run on the live testnet
+
+`script/E2E.s.sol` drives the deployed contracts through a full cycle with five throwaway actors and asserts every step (if any `require` fails in simulation, nothing is broadcast). Run on 2026-09-19 against the deployment above — 37 transactions, blocks 121593273–121593758, gas 5,227,492:
+
+| Phase | What happened | Evidence |
+|---|---|---|
+| 1 Supply | Alice supplied 10,000 mock USDG | [`supply`](https://explorer.testnet.chain.robinhood.com/tx/0x8220cc9f51f8563bc4bdc00f4d622c5470a8cc0665751246e1844a4338a9f972) |
+| 2 Borrow | Bob and Erin each posted 10 NVDA and borrowed 979.26 USDG at the haircut price (114.00), LTV 85.9 % | [`borrow`](https://explorer.testnet.chain.robinhood.com/tx/0x67ccfc4f1d49d26536cdce226b3602ca1c9f63e0bc8f3765a250b2f06d3d9900) |
+| 3 Member | both authorized `VigilPreLiquidation` and funded their premium escrow | [`topUp`](https://explorer.testnet.chain.robinhood.com/tx/0x454d166ce6dca1aa6523ff816a3fa1760fa2b4da58293fd068a0eb7cfa786b86) |
+| 4 Backstop | Carol deposited 5,000 USDG and requested a 10 % exit (7-day cooldown) | [`deposit`](https://explorer.testnet.chain.robinhood.com/tx/0x8bcb35f3c7b7e574dc1983e3d3694fadd2730090eac9c6f55bc822963829e05e) |
+| 5 Keeper | attestation delayed Monday's open by one hour: closure 65.5 h → 66.5 h | [`attest`](https://explorer.testnet.chain.robinhood.com/tx/0xd190a9c22a1f45d36f3b9053b115bdb83fc4d2b64c32d181f4ae6ac55be3ead9) |
+| 6 Unwind | Dave repaid 309.67 USDG for Bob at a 3 % discount → Bob 80 % LTV | [`preLiquidate`](https://explorer.testnet.chain.robinhood.com/tx/0x99e5df2e07d491745b0e14041bb58f9f7998baa5e475073640df2f70316d0264) |
+| 7 Gap | feed −14.18 % (5 Aug 2024 replay): oracle 114.00 → 97.83 | [`set`](https://explorer.testnet.chain.robinhood.com/tx/0x59230b07b89d2d61eb082388da4a5e65372bef4a8381b84382fd3ed97dc706df) |
+| 8 Cover | Erin's shortfall 42.00 USDG paid by the backstop inside `liquidateWithCover`; Bob needed no cover; suppliers' assets unchanged | [`liquidateWithCover`](https://explorer.testnet.chain.robinhood.com/tx/0x72628247d2073d04abac25145fe08b016eaf4d205319e93f099690ad9454f809) |
+| 9 Restore | feed back to 120.00; backstop 5,000 → 4,957.95 USDG | [`set`](https://explorer.testnet.chain.robinhood.com/tx/0x9e5e40752ab17f9801ea374acff99e607c4e3f08f3ec2eb760019f33b54da912) |
+
+```bash
+forge script script/E2E.s.sol --rpc-url robinhood_testnet --broadcast --slow --gas-estimate-multiplier 200 -vv
+```
+
+The same script runs against an Anvil fork of the testnet (`anvil --fork-url robinhood_testnet --chain-id 46630 --block-time 2`) for free. `video/` records a run from the public dashboard and narrates it from the numbers it produced — see [`video/README.md`](video/README.md); the recorded take was filmed against deployment v1 (same script, same numbers).
 
 ## Default parameters
 
@@ -239,6 +262,11 @@ keeper, unwind bot) can only tighten and are not required for safety.
   scheduled 4 seconds ahead became a full step in the haircut.
 - **INV-3** (no price steps) is stated for price *decreases*; releasing a haircut when an attestation expires
   may be instantaneous — it does not affect solvency.
+- **A tightening is a ramped increment on top of the calendar haircut**, never a restart from zero:
+  `h = h_cal + (H_tight − h_cal) · f`, with `f` ramping from the moment the tightening was issued. Consecutive
+  keeper attestations carry the same start, so a keeper refreshing every 30 minutes keeps the ramp going.
+  (Found by the invariant fuzzer: a `CLOSED` attestation in the middle of `EXTENDED` used to zero the haircut,
+  lift the price, and then drop it 500 bps when the calendar caught up.)
 - **`liquidateWithCover`** chooses its path from remaining debt vs. `maxRepayable` after cover (not from a
   rounding-sensitive comparison of the covered amount); a 0.001 USDG `DUST` bound guarantees a full seizure
   leaves no bad debt.
@@ -297,9 +325,11 @@ src/
 script/
   Deploy.s.sol               per-contract deployment from an EOA (env-driven, mocks as fallback)
   Demo.s.sol                 two-market historical replay
+  E2E.s.sol                  end-to-end cycle against a live deployment (testnet or Anvil fork)
   DeployLib.sol              shared calibrated parameters and the demo deployer
 web/
   src/                       static dashboard (see Dashboard); src/abi is generated from out/
+video/                       records an E2E run from the dashboard and narrates it (video/README.md)
 test/
   unit/                      one suite per contract
   scenarios/                 historical replays (5 Aug 2024, 27 Jan 2025) and cover paths
@@ -308,10 +338,11 @@ test/
 
 ## Status and roadmap
 
-- [x] MVP: 8 contracts, 72 tests, historical replay demo
+- [x] MVP: 8 contracts, 77 tests, historical replay demo
 - [x] On-chain verification of every mainnet dependency (table above)
 - [x] Live on Robinhood Chain testnet 46630 (addresses above)
 - [x] Live dashboard on GitHub Pages
+- [x] End-to-end run on the live testnet (37 transactions, recorded)
 - [ ] Full calibrator: POT/GPD weekend tail fit, backtest, gap-distribution charts
 - [ ] Re-verify the embedded NYSE calendar against nyse.com (V15)
 - [ ] Off-chain services: session keeper (attestations) and unwind bot

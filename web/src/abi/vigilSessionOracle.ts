@@ -132,6 +132,11 @@ export const vigilSessionOracleAbi = [
         "name": "issuedAt",
         "type": "uint64",
         "internalType": "uint64"
+      },
+      {
+        "name": "since",
+        "type": "uint64",
+        "internalType": "uint64"
       }
     ],
     "stateMutability": "view"

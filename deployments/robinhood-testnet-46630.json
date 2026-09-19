@@ -4,9 +4,11 @@
   "rpc": "https://rpc.testnet.chain.robinhood.com",
   "explorer": "https://explorer.testnet.chain.robinhood.com",
   "deployer": "0x90351bb1e85a17d5f70c62c0cc076d39d897076d",
-  "deployedAt": "2026-09-19T04:07:39Z",
+  "deployedAt": "2026-09-19T06:38:46Z",
+  "version": 2,
+  "previous": "robinhood-testnet-46630-v1.json",
   "market": {
-    "id": "0x182f57bc84c43b38fb6ec7df529b9e274cd32bd833161d5df5419a126ad7265d",
+    "id": "0x4b7339b6469bf06ff83ec7ec4baa995f2589ae7782d11b2ba6d02c2c218a5145",
     "loanToken": "MockUSDG",
     "collateralToken": "MockStockToken (NVDA)",
     "oracle": "VigilOracle",
@@ -15,69 +17,69 @@
   },
   "contracts": {
     "Morpho": {
-      "address": "0x8f78d8e2d0db49e048606a91479e6309d869ae22",
-      "tx": "0x353d73faf291533209876b9a9afd71463eb3bf046bee0c1b91f5803e69ee4775",
-      "block": 121537078
+      "address": "0x62ded950d641cbdc935eb6f28be19912c84afad9",
+      "tx": "0xa33274d3ace2265b4b58b64425c92cb5166a7ce1ecf90c9ec75889bf07aac8cc",
+      "block": 121592095
     },
     "MockIRM": {
-      "address": "0x5ccf601f2853729e7d4b33c9d9f52fc40ac3615c",
-      "tx": "0xad78297106a1452dbaf6578eb2894e51f0c0630415fb1cb45c59147de1332693",
-      "block": 121537096
+      "address": "0xa41bfe7f75719ba17ae7046929df7a89e580dbc3",
+      "tx": "0x748c9fbce8035a754b958ae440b12f2788ebc398f8ffba1ce9d9c60d7fba21ef",
+      "block": 121592111
     },
     "MockUSDG": {
-      "address": "0x4aa9186ffa5cae49f641c51b405ac1850a64d8fd",
-      "tx": "0xff715f57affe2f3b9207275d204953acb79555004fc5f829ebd3d7c2c31b1b73",
-      "block": 121537111
+      "address": "0xf6349dfd96dabdf6ed596f25e272060e5e6860ef",
+      "tx": "0xcbf5977961fd9b4406825791bce9ee5c444f6cab0669d3883bf5045ae1174036",
+      "block": 121592143
     },
     "MockStockToken": {
-      "address": "0x15488fb7764e29f8c587b604e4ad7e89c37687c4",
-      "tx": "0xd168b28c04e2ebd5f12dcb0d8bd70d476fa036abfbaa03390ee79448f2bc4a1b",
-      "block": 121537120
+      "address": "0x78e2a9b5a2e725b4fcfea23cb4f9aa8232491f90",
+      "tx": "0x3fe0c6ed537159d756f6cd16d9f7334bad626e7c23853c36c7823557d323b12d",
+      "block": 121592150
     },
     "MockFeed": {
-      "address": "0xaf0f38314f76a1dd15576bbd60dc12ff95df209b",
-      "tx": "0x7c0b65910d50da3000b8f5706a5353326197b1a8a5f8cfe733191c7b81acf1d5",
-      "block": 121537126
+      "address": "0xa21b9aaa5e7074e7171cb8b3b166bcfaba36e9c3",
+      "tx": "0xf2daaca637a91c4724117cdcf173a907fdc6399f21d1525de48dff92f10aa284",
+      "block": 121592159
     },
     "VigilCalendar": {
-      "address": "0xc9a9ec2b905b8ac8c95f7217fd909450475fec51",
-      "tx": "0x40d62a11fa51d0037225f0bf2e9a83bdfcdd682e0d17c24cf226ed14e19e659b",
-      "block": 121537133
+      "address": "0x3ffe81615b8b1909f684e9a7c1eb82a38c0a0b8c",
+      "tx": "0xdaecb7ba9093be16bcceb73225bc4a68ae7fdb286ad1b2f12657aa1dbe3b932e",
+      "block": 121592175
     },
     "VigilSessionOracle": {
-      "address": "0x06a7a6a1234ccf89400cdc554b57b556bc8a3c0b",
-      "tx": "0xc3c88871f2e4925f8693709d55d7535a0f8905f2009efcad0ce79015361882ee",
-      "block": 121537137
+      "address": "0x575a54bc6d25e19b60fc67b5ccea09bfee12a0fd",
+      "tx": "0x2151928e2937fb1b7fee1d3f7f81da95981d417570cccd59ab51025ebbf12a94",
+      "block": 121592181
     },
     "VigilRiskEngine": {
-      "address": "0xc1edf7f0d1dbb008efe467cc22d018c88d0a3159",
-      "tx": "0xb93e23dcc822f86bf56ccb1964d37f0839ab85ab3550b1f09643d249c0b6a95f",
-      "block": 121537146
+      "address": "0xb92b73e35c740f2893c949110a742e31554fc2ae",
+      "tx": "0x2171b07fef3092f0118b6fd56c5e61a2b3070398aed6b2df07053a61249af2da",
+      "block": 121592198
     },
     "VigilOracle": {
-      "address": "0x351ca8799d409f3bf37b147928fee756ee96ca72",
-      "tx": "0xbf029af54d423bf4e8479b8003d8bd9f484e7f4c6afe1895b70cf98352156d42",
-      "block": 121537183
+      "address": "0x445a820a0f3aee54e43715620938e71b04a2974e",
+      "tx": "0x8c839b8ef814a0801de2e52d2fee93ae78cfa6de1364ec540427015380387e5f",
+      "block": 121592276
     },
     "VigilBackstop": {
-      "address": "0x3149bb2a5e58d792722673821a15bec0fe6e7ca7",
-      "tx": "0x49d678a3dbce9e75a8faa30ce7ff50b4be68a0ed8159083110d0e05f952dedd6",
-      "block": 121537198
+      "address": "0x27873298da0d56c3efb17bdf7a39e1c4808149b9",
+      "tx": "0x9bce94eab90fd8e5176f2bc89e90116784d12a492bd73b9e49636c43c7f28005",
+      "block": 121592318
     },
     "VigilPremium": {
-      "address": "0xf1e5f5c05063308c62b58f72dde838ca9f3a66a4",
-      "tx": "0x538898983e3fc8f1b26ca9d892ac6fb1f446c709b1f79366b16b1d8b76188d01",
-      "block": 121537214
+      "address": "0xfb3e7b6b169fdf655d76d6984a895bfa4703bb70",
+      "tx": "0xf6a9d8d51c2c2273eba3014a99feaaa4fab2b9d3069e8d68c9e3aed3f0f47ed7",
+      "block": 121592337
     },
     "VigilPreLiquidation": {
-      "address": "0x6d7f2a581116354d4ad3ce2f7672dfc0c2dad700",
-      "tx": "0x1f7639b42a49ffffbeb6535a4da66a25f37767476ed1ba8809f9f26ada5a42b3",
-      "block": 121537220
+      "address": "0x824a6d52ad196796bfea76b8754fddc111f70b07",
+      "tx": "0x90e681ab5af06f911c2b927894e80e438891c8aded65af1fcde9cf8b281ef114",
+      "block": 121592350
     },
     "VigilLossReporter": {
-      "address": "0x7dca6e034c02d5bb62fcf38227664ad8fa220ea2",
-      "tx": "0x2617d2f205c8059a0ad141172732460b70afd883d69a0aac5e064e6178d42b7e",
-      "block": 121537226
+      "address": "0x740c6ca8c04c5f528db86f1779a467bf91424984",
+      "tx": "0xfbf1c9acc1cf007b8411f048f88582a7aee6f774e46ce1cc641b15a3e8d56be5",
+      "block": 121592371
     }
   }
 }
