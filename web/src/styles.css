@@ -69,7 +69,9 @@ body {
   line-height: 1.45;
   font-feature-settings: "tnum" 1;
 }
-#app { max-width: 1120px; margin: 0 auto; padding: 20px 16px 40px; display: grid; gap: 18px; }
+#app { max-width: 1120px; margin: 0 auto; padding: 20px 16px 40px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+.panel, .site-header, .site-footer { min-width: 0; }
+.break { overflow-wrap: anywhere; }
 a { color: var(--accent); }
 .hidden { display: none !important; }
 .mono { font-family: var(--mono); font-size: 12.5px; }
@@ -158,3 +160,50 @@ a { color: var(--accent); }
   .big { font-size: 22px; }
   .panel { padding: 16px; }
 }
+
+/* ───────────────────────── price / economy ───────────────────────── */
+.big.accent { color: var(--accent); }
+.price-grid, .econ-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-top: 12px; }
+.chart-head { margin-top: 22px; }
+.chart-title { margin: 0; font-weight: 600; font-size: 15px; }
+.chart-wrap { position: relative; margin-top: 12px; }
+.curve, .flow { width: 100%; height: auto; display: block; }
+.curve .grid line { stroke: var(--line); stroke-width: 1; }
+.curve text { font-family: var(--mono); font-size: 10.5px; fill: var(--muted); }
+.curve .curve-area { fill: var(--accent); opacity: 0.08; }
+.curve .curve-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.curve .ref-cap { stroke: var(--closed); stroke-dasharray: 5 4; fill: var(--ink); stroke-width: 1.25; }
+.curve text.ref-cap, .curve text.ref-floor { fill: var(--ink); }
+.curve .ref-floor { stroke: var(--line-strong); stroke-dasharray: 2 4; }
+.curve .marker-line { stroke: var(--line-strong); stroke-dasharray: 3 3; }
+.curve .marker-dot { fill: var(--panel); stroke: var(--accent); stroke-width: 2; }
+.curve .marker-label { fill: var(--ink); font-size: 10px; }
+.curve .crosshair { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 3; }
+.curve .hover-dot { fill: var(--accent); stroke: var(--panel); stroke-width: 2; }
+.curve .current { fill: var(--accent); stroke: var(--panel); stroke-width: 2.5; animation: breathe 3s ease-in-out infinite; }
+.curve .current-label { fill: var(--ink); font-weight: 600; font-size: 11px; }
+.tooltip {
+  position: absolute; transform: translate(-50%, -100%); pointer-events: none; white-space: nowrap;
+  background: var(--ink); color: var(--bg); font-family: var(--mono); font-size: 11px; padding: 5px 8px; border-radius: 6px;
+}
+
+/* ───────────────────────── evidence / contracts ───────────────────────── */
+.table-wrap { overflow-x: auto; margin-top: 8px; }
+.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.table th { text-align: left; color: var(--muted); font-family: var(--mono); font-weight: 400; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; border-bottom: 1px solid var(--line-strong); padding: 8px 8px; white-space: nowrap; }
+.table td { border-bottom: 1px solid var(--line); padding: 9px 8px; vertical-align: top; }
+.table td.zero { color: var(--live); font-family: var(--mono); font-weight: 600; font-size: 18px; }
+.table td.mono { white-space: nowrap; }
+.table a { color: var(--accent); text-decoration: none; }
+.table a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.flow-box { fill: var(--panel-2); stroke: var(--line-strong); }
+.flow-box.flow-ext { stroke: var(--accent); stroke-dasharray: 4 3; }
+.flow-text { font-family: var(--mono); font-size: 12px; fill: var(--ink); }
+.flow-label { font-family: var(--mono); font-size: 9.5px; fill: var(--muted); }
+.flow-arrow { stroke: var(--muted); stroke-width: 1.25; }
+.flow-head { fill: var(--muted); }
+@media (max-width: 480px) { .table { font-size: 12px; } .table td.zero { font-size: 15px; } }
+.table td.wrap { white-space: normal; }
+.table-evidence { table-layout: fixed; }
+.flow-text { font-size: 13px; }
+.table-evidence th { white-space: normal; }

@@ -7,13 +7,16 @@ export interface CurvePoint { L: number; bps: number }
 
 export const CURVE_STEP = 7200;
 export const CURVE_MAX = 432000; // 120 h
-export const CURVE_L: number[] = Array.from({ length: CURVE_MAX / CURVE_STEP + 1 }, (_, i) => i * CURVE_STEP);
+export const GRID_L: number[] = Array.from({ length: CURVE_MAX / CURVE_STEP + 1 }, (_, i) => i * CURVE_STEP);
 
 export const MARKERS = [
   { L: 63000, label: 'overnight' },
   { L: 235800, label: 'weekend' },
   { L: 322200, label: 'long weekend' },
 ] as const;
+
+/** 2-hour grid plus the exact marker closures, sorted — so marker labels are on-chain values, not neighbours. */
+export const CURVE_L: number[] = [...new Set([...GRID_L, ...MARKERS.map((m) => m.L)])].sort((a, b) => a - b);
 
 export function curveCalls(surface: Surface, eventMultBps = 10000n) {
   const sf = {

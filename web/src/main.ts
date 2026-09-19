@@ -1,16 +1,22 @@
 import './styles.css';
 import { client } from './chain/client';
 import { readSnapshot, type Snapshot } from './chain/snapshot';
+import { readCurve } from './chain/curve';
 import { el, mount } from './ui/dom';
 import { startPolling } from './ui/poll';
 import { createHeader } from './panels/header';
 import { createSession } from './panels/session';
+import { createPrice } from './panels/price';
+import { createEconomy } from './panels/economy';
+import { createEvidence } from './panels/evidence';
+import { createContracts } from './panels/contracts';
 import { createFooter } from './panels/footer';
 import type { Meta, Panel } from './panels/types';
 
 const app = document.querySelector<HTMLDivElement>('#app')!;
 const banner = el('div', { class: 'banner hidden', role: 'status' });
-const panels: Panel[] = [createHeader(), createSession(), createFooter()];
+const price = createPrice();
+const panels: Panel[] = [createHeader(), createSession(), price, createEconomy(), createEvidence(), createContracts(), createFooter()];
 mount(app, banner, ...panels.map((p) => p.root));
 
 let snapshot: Snapshot | null = null;
@@ -26,12 +32,18 @@ function paint() {
   }
 }
 
+let curveSurfaceKey = '';
 startPolling(
   async () => {
     snapshot = await readSnapshot(client);
     meta.lastOkMs = Date.now();
     meta.error = null;
     paint();
+    const key = `${snapshot.surface.sigmaGapWad}-${snapshot.surface.kTailBps}-${snapshot.surface.hFloorBps}-${snapshot.surface.hMaxBps}`;
+    if (key !== curveSurfaceKey) {
+      price.setCurve(await readCurve(client, snapshot.surface));
+      curveSurfaceKey = key;
+    }
   },
   (e) => {
     meta.error = e instanceof Error ? e.message : String(e);
