@@ -177,7 +177,7 @@ forge script script/Deploy.s.sol --rpc-url robinhood_testnet --broadcast
 
 ### Live deployment — Robinhood Chain testnet (chain ID 46630)
 
-Deployed 2026-09-19 from `0x90351bB1E85a17D5f70c62C0cC076D39D897076D` (also `guardian`, `calibrator` and `keeperSigner`), 26 transactions, 28.14 M gas. Full manifest with transaction hashes: [`deployments/robinhood-testnet-46630.json`](deployments/robinhood-testnet-46630.json); Foundry broadcast log under `broadcast/Deploy.s.sol/46630/`. The first deployment of the day (before the tightening-ramp fix, see Design notes) is kept as [`deployments/robinhood-testnet-46630-v1.json`](deployments/robinhood-testnet-46630-v1.json) because the recorded end-to-end run below was filmed against it.
+Deployed 2026-09-19 from `0x90351bB1E85a17D5f70c62C0cC076D39D897076D` (also `guardian`, `calibrator` and `keeperSigner`), 26 transactions, 28.14 M gas. Full manifest with transaction hashes: [`deployments/robinhood-testnet-46630.json`](deployments/robinhood-testnet-46630.json); Foundry broadcast log under `broadcast/Deploy.s.sol/46630/`. The first deployment of the day (before the tightening-ramp fix, see Design notes) is kept as [`deployments/robinhood-testnet-46630-v1.json`](deployments/robinhood-testnet-46630-v1.json) for provenance (the first take of the demo video was filmed against it; the current video is the v2 run below).
 
 | Contract | Address |
 |---|---|
@@ -211,25 +211,25 @@ cast call 0x575a54Bc6D25e19b60Fc67B5cCea09Bfee12a0fD "regimeOf(address)(uint8,ui
 
 ### End-to-end run on the live testnet
 
-`script/E2E.s.sol` drives the deployed contracts through a full cycle with five throwaway actors and asserts every step (if any `require` fails in simulation, nothing is broadcast). Run on 2026-09-19 against the deployment above — 37 transactions, blocks 121593273–121593758, gas 5,227,492:
+`script/E2E.s.sol` drives the deployed contracts through a full cycle with five throwaway actors and asserts every step (if any `require` fails in simulation, nothing is broadcast). Run on 2026-09-19 against the deployment above — 37 transactions, blocks 121648116–121648449, gas 4,931,348 (this is the run in the video):
 
 | Phase | What happened | Evidence |
 |---|---|---|
-| 1 Supply | Alice supplied 10,000 mock USDG | [`supply`](https://explorer.testnet.chain.robinhood.com/tx/0x8220cc9f51f8563bc4bdc00f4d622c5470a8cc0665751246e1844a4338a9f972) |
-| 2 Borrow | Bob and Erin each posted 10 NVDA and borrowed 979.26 USDG at the haircut price (114.00), LTV 85.9 % | [`borrow`](https://explorer.testnet.chain.robinhood.com/tx/0x67ccfc4f1d49d26536cdce226b3602ca1c9f63e0bc8f3765a250b2f06d3d9900) |
-| 3 Member | both authorized `VigilPreLiquidation` and funded their premium escrow | [`topUp`](https://explorer.testnet.chain.robinhood.com/tx/0x454d166ce6dca1aa6523ff816a3fa1760fa2b4da58293fd068a0eb7cfa786b86) |
-| 4 Backstop | Carol deposited 5,000 USDG and requested a 10 % exit (7-day cooldown) | [`deposit`](https://explorer.testnet.chain.robinhood.com/tx/0x8bcb35f3c7b7e574dc1983e3d3694fadd2730090eac9c6f55bc822963829e05e) |
-| 5 Keeper | attestation delayed Monday's open by one hour: closure 65.5 h → 66.5 h | [`attest`](https://explorer.testnet.chain.robinhood.com/tx/0xd190a9c22a1f45d36f3b9053b115bdb83fc4d2b64c32d181f4ae6ac55be3ead9) |
-| 6 Unwind | Dave repaid 309.67 USDG for Bob at a 3 % discount → Bob 80 % LTV | [`preLiquidate`](https://explorer.testnet.chain.robinhood.com/tx/0x99e5df2e07d491745b0e14041bb58f9f7998baa5e475073640df2f70316d0264) |
-| 7 Gap | feed −14.18 % (5 Aug 2024 replay): oracle 114.00 → 97.83 | [`set`](https://explorer.testnet.chain.robinhood.com/tx/0x59230b07b89d2d61eb082388da4a5e65372bef4a8381b84382fd3ed97dc706df) |
-| 8 Cover | Erin's shortfall 42.00 USDG paid by the backstop inside `liquidateWithCover`; Bob needed no cover; suppliers' assets unchanged | [`liquidateWithCover`](https://explorer.testnet.chain.robinhood.com/tx/0x72628247d2073d04abac25145fe08b016eaf4d205319e93f099690ad9454f809) |
-| 9 Restore | feed back to 120.00; backstop 5,000 → 4,957.95 USDG | [`set`](https://explorer.testnet.chain.robinhood.com/tx/0x9e5e40752ab17f9801ea374acff99e607c4e3f08f3ec2eb760019f33b54da912) |
+| 1 Supply | Alice supplied 10,000 mock USDG | [`supply`](https://explorer.testnet.chain.robinhood.com/tx/0xa91da69764acf30650e03ddd6ad653b3818783b98ed9a0b6677f7cf85ba8052c) |
+| 2 Borrow | Bob and Erin each posted 10 NVDA and borrowed 979.26 USDG at the haircut price (114.00), LTV 85.9 % | [`borrow`](https://explorer.testnet.chain.robinhood.com/tx/0x26b2b48f8d5191a824223d4f8b8b42d8e950d014d6e13785803ce9c7f96cc98a) |
+| 3 Member | both authorized `VigilPreLiquidation` and funded their premium escrow | [`topUp`](https://explorer.testnet.chain.robinhood.com/tx/0x1ec981139074dcc5081cda21266cf2ee2afc47aadc05d08ed2f5f5ae36a050ed) |
+| 4 Backstop | Carol deposited 5,000 USDG and requested a 10 % exit (7-day cooldown) | [`deposit`](https://explorer.testnet.chain.robinhood.com/tx/0xfde733c09fde6a7d2ae955f59e27caf5705e7b8b19d635111b29798fe02a4b2f) |
+| 5 Keeper | attestation delayed Monday's open by one hour: closure 65.5 h → 66.5 h | [`attest`](https://explorer.testnet.chain.robinhood.com/tx/0x763d98d3063fe19f25626b23ab488040e1c4c8c19444150864783b0c68706c9f) |
+| 6 Unwind | Dave repaid 309.67 USDG for Bob at a 3 % discount → Bob 80 % LTV | [`preLiquidate`](https://explorer.testnet.chain.robinhood.com/tx/0x27fa67f58f4b19921390a140a51f0ee196f3ad238bbff2481f7cd62ca4e5c26c) |
+| 7 Gap | feed −14.18 % (5 Aug 2024 replay): oracle 114.00 → 97.83 | [`set`](https://explorer.testnet.chain.robinhood.com/tx/0x7f06fb247af701c2c95e070696c3bd1b8bf83e2dfbb571a6bb9a6e004320cdb0) |
+| 8 Cover | Erin's shortfall 42.00 USDG paid by the backstop inside `liquidateWithCover`; Bob needed no cover; suppliers' assets unchanged | [`liquidateWithCover`](https://explorer.testnet.chain.robinhood.com/tx/0x439f79b2462a159b5339bc18422256272dd4c8106f65ba9d30fb006ac5aef7e0) |
+| 9 Restore | feed back to 120.00; backstop 5,000 → 4,957.95 USDG | [`set`](https://explorer.testnet.chain.robinhood.com/tx/0xa1dcba74f9f6d703660bc960648c063e48be9d649fd32298508c25a7b9e3ad4d) |
 
 ```bash
 forge script script/E2E.s.sol --rpc-url robinhood_testnet --broadcast --slow --gas-estimate-multiplier 200 -vv
 ```
 
-The same script runs against an Anvil fork of the testnet (`anvil --fork-url robinhood_testnet --chain-id 46630 --block-time 2`) for free. `video/` records a run from the public dashboard and narrates it from the numbers it produced — see [`video/README.md`](video/README.md); the recorded take was filmed against deployment v1 (same script, same numbers).
+The same script runs against an Anvil fork of the testnet (`anvil --fork-url robinhood_testnet --chain-id 46630 --block-time 2`) for free. `video/` records a run from the public dashboard and narrates it from the numbers it produced — see [`video/README.md`](video/README.md). The demo video is the run in the table above, wrapped in static cards (problem, gap distribution, mainnet fork, backtest, links) whose numbers `video/verify.sh` pins to `calibrator/report_full.md` and this README.
 
 ### Mainnet fork: the real dependencies, no mocks
 

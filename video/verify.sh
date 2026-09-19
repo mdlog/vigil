@@ -31,6 +31,45 @@ for ok, what in checks:
     print("   ", "ok " if ok else "MISMATCH", what)
 sys.exit(0 if all(ok for ok, _ in checks) else 1)
 PY
+echo "3b. every number on a card or in the card narration exists in its source file"
+python3 - <<'PY'
+import json, re, subprocess, sys
+cards = open("cards.html").read()
+n = {x["id"]: x["text"] for x in json.loads(subprocess.check_output(["node", "--experimental-strip-types", "script.ts", "--narration"], text=True, stderr=subprocess.DEVNULL))}
+report = open("../calibrator/report_full.md").read()
+readme = open("../README.md").read()
+checks = [
+    ("4.04 years, 1014 closures" in report and "4.04 YEARS" in cards.upper() and "1,014" in cards, "years / closures"),
+    ("14.18%" in report and "−14.18 %" in cards, "gap 5 Aug 2024"),
+    ("12.49%" in report and "−12.49 %" in cards, "gap 27 Jan 2025"),
+    ("LLTV 0.86" in report and "86 %" in cards and "eighty-six percent" in n["pre-02-gaps"], "LLTV 86 %"),
+    (re.search(r"NVDA \| 2 \(.*\n\| AAPL \| 0 \(.*\n\| TSLA \| 1 \(", report) is not None and "3 bad-debt closures" in cards and "three bad-debt closures" in n["post-02-backtest"], "3 plain-market closures"),
+    ("| 122.2 | 299.2 | 17.8 | 0.0 |" in report and "122 bp/yr" in cards and "18 – 299 bp/yr" in cards and "one hundred twenty-two basis points" in n["post-02-backtest"], "premium vs tail"),
+    ("31.20 USDG shortfall" in readme and "31.20 USDG" in cards, "fork cover"),
+    ("500 bps at +10 min, 244 bps at +45 min" in readme and "500 → 244 bps" in cards, "fork ramp-out"),
+    ("Friday 15:55" in readme and "Fri 15:55 ET" in cards, "feed frozen since Friday"),
+    ("all 50 closures + 11 early closes match" in readme and "50/50 closures, 11/11 early closes" in cards, "calendar V15"),
+    ("run 24/5 and **freeze for the whole" in readme and "twenty-four five" in n["pre-01-problem"], "24/5 feed"),
+    ("charged nothing for either" in readme and "charged nothing for either" in n["pre-02-gaps"], "interest charged nothing"),
+]
+for ok, what in checks:
+    print("   ", "ok " if ok else "MISMATCH", what)
+sys.exit(0 if all(ok for ok, _ in checks) else 1)
+PY
+echo "3c. every card beat has a 1920x1080 screenshot"
+python3 - <<'PY'
+import json, struct, subprocess, sys
+cards = json.loads(subprocess.check_output(["node", "--experimental-strip-types", "script.ts", "--cards"], text=True, stderr=subprocess.DEVNULL))
+bad = []
+for c in cards:
+    try:
+        d = open(f"out/cards/{c['card']}.png", "rb").read(24)
+        w, h = struct.unpack(">II", d[16:24])
+        if (w, h) != (1920, 1080): bad.append(f"{c['card']} is {w}x{h}")
+    except FileNotFoundError:
+        bad.append(f"{c['card']} missing")
+print("   ", f"{len(cards)} cards", "ok" if not bad else bad); sys.exit(1 if bad else 0)
+PY
 echo "4. every confirmation on camera is a successful receipt"
 python3 - <<'PY'
 import json, sys

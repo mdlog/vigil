@@ -103,31 +103,43 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Cap,Inter,40,&H00F0EBE8,&H00FFFFFF,&H00000000,&H8C000000,0,0,0,0,100,100,0,0,3,0,0,2,200,200,64,1
-Style: Chip,DejaVu Sans Mono,24,&H00F0EBE8,&H00FFFFFF,&H00000000,&HA0000000,0,0,0,0,100,100,0,0,3,0,0,3,0,28,22,1
+Style: Cap,Inter,40,&H00F0EBE8,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,3,1,2,200,200,64,1
+Style: Chip,DejaVu Sans Mono,24,&H00F0EBE8,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,1,2,1,3,0,28,22,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
 
 
-def plan_cuts(audio, beats, marks, end_s, gap_s=GAP_S, end_card_s=5.0):
+def plan_cuts(audio, beats, marks, end_s, cards=None, gap_s=GAP_S, end_card_s=5.0):
     """One entry per beat: the footage ranges kept from the take, the hold, the
-    narration delay, and where the beat lands in the output."""
-    ids = [a["id"] for a in audio]
+    narration delay, and where the beat lands in the output. A card beat (static
+    PNG under its narration) has no footage: its segment is the narration or the
+    card's minimum reading time, whichever is longer. The last take beat ends at
+    the take's end-card mark — the end card is a card beat of its own."""
+    cards = cards or {}
+    take_ids = [a["id"] for a in audio if a["id"] not in cards]
     meta = {b["id"]: b for b in beats}
     cut, t = [], 0.0
-    for i, row in enumerate(audio):
+    for row in audio:
         b = row["id"]
+        delay = row["delayMs"] / 1000
+        if b in cards:
+            needed = delay + row["audioS"] + gap_s
+            segment = max(needed, float(cards[b]["minVisualS"]))
+            cut.append({"id": b, "card": cards[b]["card"], "ranges": [], "availableS": 0.0, "holdS": 0.0,
+                        "segmentS": round(segment, 3), "outStartS": round(t, 3), "delayS": round(delay, 3)})
+            t += segment
+            continue
         start = marks[b]
-        end = marks[ids[i + 1]] if i + 1 < len(ids) else end_s
+        i = take_ids.index(b)
+        end = marks[take_ids[i + 1]] if i + 1 < len(take_ids) else marks.get("end", end_s)
         m = meta[b]
         ranges = [[start, end]]
         skip = m.get("skipIdle")
         if skip and end - start > skip["headS"] + skip["tailS"]:
             ranges = [[start, start + skip["headS"]], [end - skip["tailS"], end]]
         available = sum(e - s for s, e in ranges)
-        delay = row["delayMs"] / 1000
         if m.get("endBeforeCard") and "end" in marks:
             card_at = marks["end"] - start  # end card position within this beat's footage
             delay = max(delay, card_at - 1.0 - row["audioS"])
@@ -157,11 +169,15 @@ def main():
     node = lambda flag: json.loads(subprocess.check_output(["node", "--experimental-strip-types", str(VIDEO / "script.ts"), flag], text=True, stderr=subprocess.DEVNULL))
     narration = {n["id"]: n["text"] for n in node("--narration")}
     beats = node("--beats")
+    cards = {c["id"]: c for c in node("--cards")}
     marks = {m["id"]: m["atS"] for m in timeline["marks"]}
     for row in audio:
-        if row["id"] not in marks:
+        if row["id"] in cards:
+            if not (OUT / "cards" / f"{cards[row['id']]['card']}.png").exists():
+                raise SystemExit(f"card {cards[row['id']]['card']} has no screenshot — run record.ts --cards")
+        elif row["id"] not in marks:
             raise SystemExit(f"beat {row['id']} has no mark in the take — its phase never confirmed on camera")
-    cut = plan_cuts(audio, beats, marks, float(timeline["durationS"]))
+    cut = plan_cuts(audio, beats, marks, float(timeline["durationS"]), cards)
     events, srt = [], []
     for row, c in zip(audio, cut):
         words = attach_punctuation(json.loads((OUT / "audio" / row["words"]).read_text()), narration[row["id"]])
@@ -184,7 +200,8 @@ def main():
     (OUT / "captions.srt").write_text("".join(f"{i}\n{srt_time(a)} --> {srt_time(b)}\n{txt}\n\n" for i, (a, b, txt) in enumerate(srt, 1)))
     (OUT / "cut.json").write_text(json.dumps(cut, indent=1))
     for c in cut:
-        print(f"  {c['id']:<20} footage {c['availableS']:6.1f}s  hold {c['holdS']:5.1f}s  delay {c['delayS']:5.1f}s  → {c['segmentS']:6.1f}s  ranges {c['ranges']}")
+        src = f"card {c['card']}" if c.get("card") else f"ranges {c['ranges']}"
+        print(f"  {c['id']:<20} footage {c['availableS']:6.1f}s  hold {c['holdS']:5.1f}s  delay {c['delayS']:5.1f}s  → {c['segmentS']:6.1f}s  {src}")
     print(f"{len(srt)} cues, total {total:.1f}s -> captions.ass / captions.srt / cut.json")
 
 

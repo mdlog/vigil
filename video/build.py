@@ -35,6 +35,21 @@ def main():
         i = c["id"]
         delay_ms = int(round(c["delayS"] * 1000))
         out = SEG / f"{i}.mp4"
+        af = f"[1:a]aresample=48000,adelay={delay_ms}|{delay_ms},apad,atrim=duration={c['segmentS']},asetpts=PTS-STARTPTS[a]"
+        if c.get("card"):
+            # a static card under its narration: the screenshot looped for the segment, with a short fade-in
+            png = OUT / "cards" / f"{c['card']}.png"
+            vf = (f"[0:v]fps=30,scale=1920:1080:flags=lanczos,setsar=1,fade=t=in:st=0:d=0.3,"
+                  f"trim=duration={c['segmentS']},setpts=PTS-STARTPTS[v];")
+            run(
+                "-loop", "1", "-framerate", "30", "-t", f"{c['segmentS'] + 0.5:.3f}", "-i", str(png), "-i", str(OUT / "audio" / audio[i]["mp3"]),
+                "-filter_complex", vf + af,
+                "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
+                "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "2", str(out),
+            )
+            parts.append(out)
+            print(f"  {i}: {c['segmentS']:.2f}s (card {c['card']})")
+            continue
         hold = max(0.0, c["holdS"])
         # one trim per kept range, concatenated, then the hold on the last frame
         parts_f = "".join(f"[0:v]trim=start={s}:end={e},setpts=PTS-STARTPTS[r{k}];" for k, (s, e) in enumerate(c["ranges"]))
@@ -42,7 +57,6 @@ def main():
         vf = (parts_f + f"{joined}concat=n={len(c['ranges'])}:v=1:a=0,fps=30,scale=1920:1080:flags=lanczos,setsar=1"
               + (f",tpad=stop_mode=clone:stop_duration={hold:.3f}" if hold > 0.01 else "")
               + f",trim=duration={c['segmentS']},setpts=PTS-STARTPTS[v];")
-        af = f"[1:a]aresample=48000,adelay={delay_ms}|{delay_ms},apad,atrim=duration={c['segmentS']},asetpts=PTS-STARTPTS[a]"
         run(
             "-i", str(raw), "-i", str(OUT / "audio" / audio[i]["mp3"]),
             "-filter_complex", vf + af,

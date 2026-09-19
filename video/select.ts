@@ -23,12 +23,19 @@ function main() {
   };
   const chainDir = timeline.rpc.includes("8546") ? "46630" : "46630";
   const broadcast = JSON.parse(fs.readFileSync(path.join(REPO, "broadcast", "E2E.s.sol", chainDir, "run-latest.json"), "utf8")) as {
-    chain: number; receipts: { status: string; gasUsed: string; blockNumber: string; transactionHash: string }[];
+    chain: number;
+    transactions: { hash: string; function: string | null }[];
+    receipts: { status: string; gasUsed: string; blockNumber: string; transactionHash: string }[];
   };
   const ok = broadcast.receipts.filter((r) => r.status === "0x1");
   if (ok.length !== TX_TOTAL) throw new Error(`broadcast has ${ok.length} successful receipts, expected ${TX_TOTAL}`);
   const hashSet = new Set(timeline.hashes);
   if (!ok.every((r) => hashSet.has(r.transactionHash))) throw new Error("receipts in the broadcast do not match the hashes seen on camera");
+  // The explorer shot is captioned as the cover transaction: refuse a take where it is anything else.
+  const shown = broadcast.transactions.find((t) => t.hash === timeline.coverTx);
+  if (timeline.coverTx && !shown?.function?.startsWith("liquidateWithCover(")) {
+    throw new Error(`the explorer shot shows ${shown?.function ?? "an unknown transaction"}, not liquidateWithCover — re-shoot`);
+  }
 
   const actors: Record<string, string> = {};
   for (const m of log.matchAll(/\[E2E\] actor (\w+) = (0x[0-9a-fA-F]{40})/g)) actors[m[1]] = m[2];

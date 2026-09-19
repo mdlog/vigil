@@ -11,20 +11,39 @@ VIDEO = pathlib.Path(__file__).resolve().parent
 OUT = VIDEO / "out" / "audio"
 VOICE = "en-US-AndrewNeural"
 GAP_S = 0.4
-LIMIT_S = 172.0
+LIMIT_S = 179.5  # projected length of the whole cut (build.py refuses > 180 s)
+# Never the take's narration first: it is the honesty spine (README › Honesty rules).
 CUT_LIST = [
+    'post-02-backtest: drop "— for a premium of one hundred twenty-two basis points a year."',
+    'pre-02-gaps: drop "— and utilization-based interest charged nothing for either."',
+    'post-01-fork: drop "the same contracts"',
     'Beat 01: drop "Watch the market line: borrowed and supplied move as the transactions confirm."',
-    'Beat 03: drop "A keeper can only tighten, and the attestation expires in thirty minutes."',
     'Beat 00: drop "It funds five throwaway actors first."',
 ]
 
 
-def narration():
+def node(flag):
     raw = subprocess.check_output(
-        ["node", "--experimental-strip-types", str(VIDEO / "script.ts"), "--narration"],
+        ["node", "--experimental-strip-types", str(VIDEO / "script.ts"), flag],
         text=True, stderr=subprocess.DEVNULL,
     )
     return json.loads(raw)
+
+
+def narration():
+    return node("--narration")
+
+
+def projected_length(index):
+    """Length of the finished cut for this narration: the take's footage floors plus the card beats.
+    Needs out/timeline.json (the take is recorded before the narration is rendered)."""
+    from captions import plan_cuts
+
+    timeline = json.loads((VIDEO / "out" / "timeline.json").read_text())
+    marks = {m["id"]: m["atS"] for m in timeline["marks"]}
+    cards = {c["id"]: c for c in node("--cards")}
+    cut = plan_cuts(index, node("--beats"), marks, float(timeline["durationS"]), cards)
+    return sum(c["segmentS"] for c in cut)
 
 
 def duration_s(mp3: pathlib.Path) -> float:
@@ -82,8 +101,9 @@ def main():
     while True:
         print(f"rendering at rate {rate}")
         index = asyncio.run(render(rate))
-        total = sum(b["audioS"] + b["delayMs"] / 1000 + GAP_S for b in index)
-        print(f"speech total {total:.1f}s (limit {LIMIT_S:.0f}s; the take adds its own footage)")
+        speech = sum(b["audioS"] + b["delayMs"] / 1000 + GAP_S for b in index)
+        total = projected_length(index)
+        print(f"speech total {speech:.1f}s → projected cut {total:.1f}s (limit {LIMIT_S:.1f}s)")
         if total <= LIMIT_S:
             break
         if rate == "+0%":

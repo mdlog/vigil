@@ -5,6 +5,7 @@
  * is cut afterwards (build.py) and narrated from the numbers it produced.
  *
  *   --probe   load the page, dock the terminal, show the cards; no forge, no video
+ *   --cards   only screenshot the static cards to out/cards/<card>.png (opening/closing beats)
  *   --fork    rehearse against the Anvil fork on 127.0.0.1:8546 (real video, no cost)
  *
  * env: VIGIL_VIDEO_URL, VIGIL_VIDEO_RPC, VIGIL_VIDEO_EXPLORER override the defaults.
@@ -13,9 +14,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { chromium, type Browser, type Page } from "playwright";
-import { BEATS, OUT_DIR, TX_PLAN, TX_TOTAL, VIDEO_DIR, firstTxOf, phaseAt, type View } from "./script.ts";
+import { BEATS, CLOSING, COVER_TX_ORDINAL, OPENING, OUT_DIR, TX_PLAN, TX_TOTAL, VIDEO_DIR, phaseAt, type View } from "./script.ts";
 
 const PROBE = process.argv.includes("--probe");
+const CARDS_ONLY = process.argv.includes("--cards");
 const FORK = process.argv.includes("--fork");
 const REPO = path.join(VIDEO_DIR, "..");
 const RAW = path.join(OUT_DIR, "raw");
@@ -30,7 +32,12 @@ const TERMINAL_W = 740;
 const CHAIN_ID = 46630;
 
 const TERMINAL_HTML = fs.readFileSync(path.join(VIDEO_DIR, "terminal.html"), "utf8");
-const CARDS_HTML = fs.readFileSync(path.join(VIDEO_DIR, "cards.html"), "utf8");
+// Chart cards embed the calibrator's PNGs as data URIs: the cards load as an iframe srcdoc, where relative paths do not resolve.
+const CARDS_HTML = fs.readFileSync(path.join(VIDEO_DIR, "cards.html"), "utf8").replace(/\{\{img:([\w.-]+)\}\}/g, (_, f: string) => {
+  const png = path.join(REPO, "calibrator", "out", f);
+  if (!fs.existsSync(png)) throw new Error(`card image missing: ${png} — run the calibrator first`);
+  return `data:image/png;base64,${fs.readFileSync(png).toString("base64")}`;
+});
 const FORGE_CMD = `forge script script/E2E.s.sol --rpc-url ${RPC} --broadcast --slow --gas-estimate-multiplier 200 -vv`;
 
 type Mark = { id: string; atS: number };
@@ -62,7 +69,7 @@ async function term(page: Page, line: string) {
   }, line);
 }
 
-async function card(page: Page, name: "title" | "end") {
+async function card(page: Page, name: string) {
   await page.evaluate(
     async ({ html, name }) => {
       document.getElementById("__overlay")?.remove();
@@ -80,6 +87,32 @@ async function card(page: Page, name: "title" | "end") {
 
 async function clearOverlay(page: Page) {
   await page.evaluate(() => document.getElementById("__overlay")?.remove());
+}
+
+/** One 1920×1080 PNG per static card (opening/closing beats) — off camera, so they can be re-shot without a take. */
+async function shootCards(browser: Browser): Promise<string[]> {
+  const dir = path.join(OUT_DIR, "cards");
+  fs.mkdirSync(dir, { recursive: true });
+  const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, deviceScaleFactor: 1, colorScheme: "dark" });
+  const page = await ctx.newPage();
+  await page.setContent(CARDS_HTML, { waitUntil: "load" });
+  await page.evaluate(() => document.fonts.ready);
+  const shots: string[] = [];
+  for (const b of [...OPENING, ...CLOSING]) {
+    await page.evaluate((name) => (window as unknown as { render: (o: { card: string }) => Promise<void> }).render({ card: name }), b.card);
+    const missing = await page.evaluate((name) => {
+      const el = document.getElementById(name);
+      if (!el) return `card #${name} not in cards.html`;
+      const img = el.querySelector("img");
+      return img && !(img.complete && img.naturalWidth > 0) ? `image of #${name} did not load` : null;
+    }, b.card);
+    if (missing) throw new Error(missing);
+    const file = path.join(dir, `${b.card}.png`);
+    await page.screenshot({ path: file });
+    shots.push(file);
+  }
+  await ctx.close();
+  return shots;
 }
 
 async function view(page: Page, v: View) {
@@ -187,15 +220,22 @@ function runForge(onLine: (l: string) => Promise<void>): Promise<number> {
 async function main() {
   fs.mkdirSync(RAW, { recursive: true });
   const plan = BEATS;
-  await fetch(URL_, { signal: AbortSignal.timeout(30_000) }).then((r) => r.arrayBuffer()).catch(() => {});
+  if (!CARDS_ONLY) await fetch(URL_, { signal: AbortSignal.timeout(30_000) }).then((r) => r.arrayBuffer()).catch(() => {});
 
   const browser = await chromium.launch();
   const context = await browser.newContext({
     viewport: { width: 1920, height: 1080 },
     deviceScaleFactor: 1,
     colorScheme: "dark",
-    ...(PROBE ? {} : { recordVideo: { dir: RAW, size: { width: 1920, height: 1080 } } }),
+    ...(PROBE || CARDS_ONLY ? {} : { recordVideo: { dir: RAW, size: { width: 1920, height: 1080 } } }),
   });
+  const shots = await shootCards(browser);
+  console.log(`  ${shots.length} cards → out/cards/`);
+  if (CARDS_ONLY) {
+    await context.close();
+    await browser.close();
+    return;
+  }
   const page = await context.newPage();
   const t0 = Date.now();
   const elapsedS = () => (Date.now() - t0) / 1000;
@@ -325,7 +365,7 @@ async function main() {
   }
   // Let the dashboard poll the final state before the summary shots.
   await page.waitForTimeout(TAIL_MS);
-  const coverTx = hashes[firstTxOf(8) - 1];
+  const coverTx = hashes[COVER_TX_ORDINAL - 1];
   const shot = coverTx ? await captureExplorer(browser, coverTx) : null;
   if (shot) {
     mark("explorer");
