@@ -7,6 +7,8 @@
 
 **Session-aware collateral risk layer for tokenized equity on Morpho Blue — built for Robinhood Chain.**
 
+**Live dashboard:** https://mdlog.github.io/vigil/ — the current session regime, oracle price vs. feed, haircut curve, premium index and backstop, read straight from the testnet.
+
 > Robinhood Chain (Arbitrum Nitro) runs 24/7. Chainlink equity price feeds run 24/5 and **freeze for the whole
 > weekend**. In four years of NVDA data, both gaps that would have produced bad debt in an 86 % LLTV market
 > happened at **Monday open** (5 Aug 2024 −14.2 %, 27 Jan 2025 −12.5 %). Utilization-based interest curves
@@ -23,6 +25,7 @@
 - [Getting started](#getting-started)
 - [Deployment](#deployment)
 - [Live deployment — Robinhood Chain testnet](#live-deployment--robinhood-chain-testnet-chain-id-46630)
+- [Dashboard](#dashboard)
 - [Default parameters](#default-parameters)
 - [Roles and trust assumptions](#roles-and-trust-assumptions)
 - [Design notes](#design-notes)
@@ -100,6 +103,18 @@ forge script script/Demo.s.sol -vv
 
 The scenario uses the production contracts as-is (no injectable clock) with `vm.warp` to the real dates, so
 DST and holidays are exercised for real.
+
+## Dashboard
+
+`web/` is a static, read-only page (Vite + TypeScript + viem) that polls the testnet through Multicall3 every 15 s and draws the haircut curve from `VigilRiskEngine.closureHaircutBps` on-chain. It is deployed to GitHub Pages by `.github/workflows/pages.yml`.
+
+```bash
+cd web && npm install
+npm run dev            # http://127.0.0.1:5173/vigil/
+npm test               # pure-function tests
+npm run test:network   # parity of the on-chain haircut curve with test/unit/CurveFixture.t.sol
+npm run abi            # regenerate src/abi from ../out after `forge build`
+```
 
 ## Getting started
 
@@ -283,6 +298,8 @@ script/
   Deploy.s.sol               per-contract deployment from an EOA (env-driven, mocks as fallback)
   Demo.s.sol                 two-market historical replay
   DeployLib.sol              shared calibrated parameters and the demo deployer
+web/
+  src/                       static dashboard (see Dashboard); src/abi is generated from out/
 test/
   unit/                      one suite per contract
   scenarios/                 historical replays (5 Aug 2024, 27 Jan 2025) and cover paths
@@ -294,6 +311,7 @@ test/
 - [x] MVP: 8 contracts, 72 tests, historical replay demo
 - [x] On-chain verification of every mainnet dependency (table above)
 - [x] Live on Robinhood Chain testnet 46630 (addresses above)
+- [x] Live dashboard on GitHub Pages
 - [ ] Full calibrator: POT/GPD weekend tail fit, backtest, gap-distribution charts
 - [ ] Re-verify the embedded NYSE calendar against nyse.com (V15)
 - [ ] Off-chain services: session keeper (attestations) and unwind bot
