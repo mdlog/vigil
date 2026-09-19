@@ -41,13 +41,13 @@ def main():
 **Title (≤ 80 chars):** Vigil — a weekend gap replayed live on Robinhood Chain testnet
 
 **Description:**
-Vigil is a session-aware collateral risk layer for tokenized equity on Morpho Blue. The middle of this video is a real end-to-end run against the deployed contracts on Robinhood Chain testnet (chain {t['chainId']}), recorded from the public dashboard: five throwaway actors supply, borrow, join, fund the backstop, the keeper tightens the session, one member is unwound before the gap, the feed replays the NVDA gap of 5 August 2024 (−{t['dropBps'] / 100:.2f} %), and both members are liquidated with the backstop covering the shortfall ({fmt(t['erinCoveredUsdg'])} USDG). {t['txCount']} transactions, blocks {t['firstBlock']}–{t['lastBlock']}; every number in that part was read from the chain during the take. Around it: the four-year NVDA gap distribution, the mainnet-fork result against the real Morpho, USDG, NVDA token and Chainlink feed, and the backtest across NVDA, AAPL and TSLA (calibrator/report_full.md in the repo).
+Vigil is a session-aware collateral risk layer for tokenized equity on Morpho Blue. The middle of this video is a real end-to-end run against the deployed contracts on Robinhood Chain testnet (chain {t['chainId']}) — Robinhood's own {t['symbol']} stock token as collateral, Paxos's USDG as the loan token — recorded from the public dashboard: five throwaway actors supply, borrow, join, fund the backstop, the keeper tightens the session, one member is unwound before the gap, the feed replays {t['symbol']}'s gap of 5 August 2024 (−{t['dropBps'] / 100:.2f} %), and both members are liquidated with the backstop covering the shortfall ({fmt(t['erinCoveredUsdg'])} USDG). {t['txCount']} transactions, blocks {t['firstBlock']}–{t['lastBlock']}; every number in that part was read from the chain during the take. Around it: the four-year NVDA gap distribution, the mainnet-fork result against the real Morpho, USDG, NVDA token and Chainlink feed, and the backtest across NVDA, AAPL and TSLA (calibrator/report_full.md in the repo).
 
 Dashboard: {t['dashboard'].split('?')[0]}
 Code: https://github.com/mdlog/vigil
 Cover transaction: {t['explorer']}/tx/{t['coverTx']}
 
-USDG, NVDA and the price feed are mocks on the testnet.
+The {t['symbol']} token and USDG are the real ones issued on the testnet by Robinhood and Paxos; the price feed and the interest-rate model are mocks (the testnet has no Chainlink feeds or Morpho).
 
 **Chapters:**
 {chapters}

@@ -149,16 +149,18 @@ Dependencies are pinned through `foundry.lock`: `morpho-blue` v1.0.0, `openzeppe
 | Robinhood Chain testnet | 46630 | `robinhood_testnet` |
 | Robinhood Chain mainnet | 4663 | `robinhood_mainnet` |
 
-`script/Deploy.s.sol` deploys one NVDA/USDG market, each contract directly from the EOA. Every dependency is
-read from the environment; anything left unset falls back to a mock (testnet 46630 has no Morpho, Chainlink
-feeds or stock tokens, verified on-chain on 19 Sep 2026 — but it does have Paxos USDG; mainnet 4663 has all of them).
+`script/Deploy.s.sol` deploys one stock/USDG market (NVDA by default, TSLA on the live testnet), each contract directly from the EOA. Every dependency is
+read from the environment; anything left unset falls back to a mock. Testnet 46630 has Paxos USDG and Robinhood's own
+stock tokens (TSLA, AMD, AMZN, NFLX, PLTR) but no Morpho or Chainlink feeds (verified on-chain, 19–20 Sep 2026); mainnet 4663 has all of them.
 
 | Variable | Meaning | Mainnet 4663 value | Fallback |
 |---|---|---|---|
 | `MORPHO` | Morpho Blue | `0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010` | deploy Morpho Blue from source |
 | `IRM` | interest rate model | `0x2BD3d5965B26B51814AC95127B2b80dD6CcC0fa1` (AdaptiveCurveIRM) | `MockIRM` |
 | `USDG` | loan token (6 decimals) | `0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168` (testnet: Paxos `0x7E955252E15c84f5768B83c41a71F9eba181802F`) | `MockUSDG` |
-| `STOCK_TOKEN` | ERC-8056 collateral | NVDA `0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC` | `MockStockToken` |
+| `STOCK_TOKEN` | ERC-8056 collateral | NVDA `0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC` (testnet: Robinhood TSLA `0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E`) | `MockStockToken` |
+| `SYMBOL` | ticker of the collateral — picks the calibrated surface (`NVDA`, `TSLA`, `AAPL`) | — | `NVDA` |
+| `FEED_INITIAL` | initial answer of the mock feed, 8 decimals | — | `120e8` |
 | `FEED` | Chainlink price feed | NVDA/USD `0x379EC4f7C378F34a1B47E4F3cbeBCbAC3E8E9F15` | `MockFeed` |
 | `USDG_FEED` | USDG/USD feed | `0x61B7e5650328764B076A108EFF5fa7282a1B9aD2` | assume $1 |
 | `PRIVATE_KEY` | deployer key for `--broadcast` | — | wallet flags (`--private-key`, `--account`) |
@@ -179,31 +181,31 @@ forge script script/Deploy.s.sol --rpc-url robinhood_testnet --broadcast
 
 ### Live deployment — Robinhood Chain testnet (chain ID 46630)
 
-Deployment **v3**, 2026-09-19 21:53 UTC, from `0x90351bB1E85a17D5f70c62C0cC076D39D897076D` (also `guardian`, `calibrator` and `keeperSigner`), 25 transactions, 27.13 M gas. The loan token is the **real USDG**: Paxos issues Global Dollar on the Robinhood Chain testnet (the only official token there besides bridged WETH — the testnet has no stock tokens, Chainlink feeds or Morpho, verified on-chain and in the [Robinhood](https://docs.robinhood.com/chain/protocol-contracts) and [Chainlink](https://docs.chain.link/data-feeds/tokenized-equity-feeds/robinhood) docs on 19–20 Sep 2026), so the market, the premium escrow and the backstop hold Paxos USDG while the NVDA token, the feed and the IRM stay mocks. Full manifest with transaction hashes: [`deployments/robinhood-testnet-46630.json`](deployments/robinhood-testnet-46630.json); Foundry broadcast log under `broadcast/Deploy.s.sol/46630/`. Earlier deployments are kept for provenance: [v1](deployments/robinhood-testnet-46630-v1.json) (before the tightening-ramp fix) and [v2](deployments/robinhood-testnet-46630-v2.json) (mock USDG; the first two takes of the video).
+Deployment **v4**, 2026-09-19 22:52 UTC, from `0x90351bB1E85a17D5f70c62C0cC076D39D897076D` (also `guardian`, `calibrator` and `keeperSigner`), 24 transactions, 26.45 M gas. **Both tokens are real.** Robinhood issues stock tokens on its testnet (TSLA, AMD, AMZN, NFLX, PLTR — BeaconProxies of the verified `Stock` implementation, registered in its `AccessControlsRegistry` and handed out by the testnet faucet) and Paxos issues Global Dollar there, so the market is Robinhood's TSLA against Paxos's USDG with the TSLA calibration (σ 0.0176). What the testnet does not have is Chainlink feeds and Morpho (checked on-chain and in the [Robinhood](https://docs.robinhood.com/chain/protocol-contracts) and [Chainlink](https://docs.chain.link/data-feeds/tokenized-equity-feeds/robinhood) docs, 19–20 Sep 2026), so the TSLA/USD feed and the IRM are mocks and Morpho Blue v1.0.0 is deployed from source. The testnet `Stock` implementation lacks `oraclePaused()` (the mainnet token has it); `VigilSessionOracle` probes it at registration and skips rule 1 for such tokens — rule 2, the `effectiveAt` window, still applies. Full manifest with transaction hashes: [`deployments/robinhood-testnet-46630.json`](deployments/robinhood-testnet-46630.json); Foundry broadcast log under `broadcast/Deploy.s.sol/46630/`. Earlier deployments are kept for provenance: [v1](deployments/robinhood-testnet-46630-v1.json) (before the tightening-ramp fix), [v2](deployments/robinhood-testnet-46630-v2.json) (all mocks) and [v3](deployments/robinhood-testnet-46630-v3.json) (mock NVDA, real USDG).
 
 | Contract | Address |
 |---|---|
-| `VigilCalendar` | [`0x2c9586b92e9c5c3c27e899920e11af7f8227e1c1`](https://explorer.testnet.chain.robinhood.com/address/0x2c9586b92e9c5c3c27e899920e11af7f8227e1c1) |
-| `VigilSessionOracle` | [`0xa86a812b837bab077828312221a85b3505bf1ca7`](https://explorer.testnet.chain.robinhood.com/address/0xa86a812b837bab077828312221a85b3505bf1ca7) |
-| `VigilRiskEngine` | [`0x0f0868173f1be1dab8fecccb67acb7a4fe5c493a`](https://explorer.testnet.chain.robinhood.com/address/0x0f0868173f1be1dab8fecccb67acb7a4fe5c493a) |
-| `VigilOracle` | [`0xf2beee25008e34d5bf6cf948f3f1fd1baea1a865`](https://explorer.testnet.chain.robinhood.com/address/0xf2beee25008e34d5bf6cf948f3f1fd1baea1a865) |
-| `VigilPremium` | [`0xa26725997452b60ac72f46f9e242f67b6b80fd81`](https://explorer.testnet.chain.robinhood.com/address/0xa26725997452b60ac72f46f9e242f67b6b80fd81) |
-| `VigilBackstop` | [`0x252674b07187e0aca5ecab2484d9949c0b766516`](https://explorer.testnet.chain.robinhood.com/address/0x252674b07187e0aca5ecab2484d9949c0b766516) |
-| `VigilPreLiquidation` | [`0xf58a5e7e24cc346b59bf6169be1841304f8438ea`](https://explorer.testnet.chain.robinhood.com/address/0xf58a5e7e24cc346b59bf6169be1841304f8438ea) |
-| `VigilLossReporter` | [`0x53d87458c47e0d7af9eec17e82a5e15fca9eba95`](https://explorer.testnet.chain.robinhood.com/address/0x53d87458c47e0d7af9eec17e82a5e15fca9eba95) |
-| **USDG — Global Dollar, issued by Paxos on the testnet** (loan token, 6 decimals, EIP-1967 proxy, `isFrozen`; 100 USDG/day from [faucet.paxos.com](https://faucet.paxos.com/)) | [`0x7E955252E15c84f5768B83c41a71F9eba181802F`](https://explorer.testnet.chain.robinhood.com/address/0x7E955252E15c84f5768B83c41a71F9eba181802F) |
-| Morpho Blue (deployed from source — testnet has none) | [`0x34089d5061a9f5330b8674c16d44bc76b551feab`](https://explorer.testnet.chain.robinhood.com/address/0x34089d5061a9f5330b8674c16d44bc76b551feab) |
-| MockStockToken NVDA (ERC-8056 mock, collateral) | [`0xf20f6806d85e65e4375ced9903fb72055307bc29`](https://explorer.testnet.chain.robinhood.com/address/0xf20f6806d85e65e4375ced9903fb72055307bc29) |
-| MockFeed NVDA/USD (8 decimals) | [`0x0ae314e93d5722b7d7c6fcaac87d3e139f65e97c`](https://explorer.testnet.chain.robinhood.com/address/0x0ae314e93d5722b7d7c6fcaac87d3e139f65e97c) |
-| MockIRM | [`0x116f2dd1a7999995b1123d8f0541ac25b538dfa9`](https://explorer.testnet.chain.robinhood.com/address/0x116f2dd1a7999995b1123d8f0541ac25b538dfa9) |
+| `VigilCalendar` | [`0x650e89feda871e194a359d8f2b9eda5fa50de503`](https://explorer.testnet.chain.robinhood.com/address/0x650e89feda871e194a359d8f2b9eda5fa50de503) |
+| `VigilSessionOracle` | [`0xa1cf321c8b4b49c83cb679d821c8315213b0f0b2`](https://explorer.testnet.chain.robinhood.com/address/0xa1cf321c8b4b49c83cb679d821c8315213b0f0b2) |
+| `VigilRiskEngine` | [`0xaec38a26eacfe9f6c908cdd771866c5b56d87c7a`](https://explorer.testnet.chain.robinhood.com/address/0xaec38a26eacfe9f6c908cdd771866c5b56d87c7a) |
+| `VigilOracle` | [`0x79da01db22808e3a7397b788f171a7647b1bef8f`](https://explorer.testnet.chain.robinhood.com/address/0x79da01db22808e3a7397b788f171a7647b1bef8f) |
+| `VigilPremium` | [`0x416f3716c226c99e5a0296fdda9ba01496348ec9`](https://explorer.testnet.chain.robinhood.com/address/0x416f3716c226c99e5a0296fdda9ba01496348ec9) |
+| `VigilBackstop` | [`0x031d0cab44c9a42e2dacf51e0f3b3dcce72356c9`](https://explorer.testnet.chain.robinhood.com/address/0x031d0cab44c9a42e2dacf51e0f3b3dcce72356c9) |
+| `VigilPreLiquidation` | [`0xa58609838474a30ea1ebe77d59b6f786abc55978`](https://explorer.testnet.chain.robinhood.com/address/0xa58609838474a30ea1ebe77d59b6f786abc55978) |
+| `VigilLossReporter` | [`0xc6e4428fd7cbafbe9f1d2bbca61c44ea984aff16`](https://explorer.testnet.chain.robinhood.com/address/0xc6e4428fd7cbafbe9f1d2bbca61c44ea984aff16) |
+| **TSLA — Tesla stock token issued by Robinhood on the testnet** (collateral; ERC-8056 BeaconProxy of the verified `Stock` implementation, registry `0x1dF3…6Ca5`; 5 per claim from [faucet.testnet.chain.robinhood.com](https://faucet.testnet.chain.robinhood.com/)) | [`0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E`](https://explorer.testnet.chain.robinhood.com/address/0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E) |
+| **USDG — Global Dollar issued by Paxos on the testnet** (loan token, 6 decimals, EIP-1967 proxy, `isFrozen`; 100 USDG/day from [faucet.paxos.com](https://faucet.paxos.com/)) | [`0x7E955252E15c84f5768B83c41a71F9eba181802F`](https://explorer.testnet.chain.robinhood.com/address/0x7E955252E15c84f5768B83c41a71F9eba181802F) |
+| Morpho Blue (deployed from source — testnet has none) | [`0x99607363652591fff66ba23ef8d91563ca48038b`](https://explorer.testnet.chain.robinhood.com/address/0x99607363652591fff66ba23ef8d91563ca48038b) |
+| MockFeed TSLA/USD (8 decimals — the testnet has no Chainlink feeds) | [`0x87ae97dd57686e9fbc85ce9d33cc39b6594c49c3`](https://explorer.testnet.chain.robinhood.com/address/0x87ae97dd57686e9fbc85ce9d33cc39b6594c49c3) |
+| MockIRM | [`0xc15db6c9c5b7bad92c088e0918d5c720a5c44630`](https://explorer.testnet.chain.robinhood.com/address/0xc15db6c9c5b7bad92c088e0918d5c720a5c44630) |
 
-Morpho market NVDA/USDG, LLTV 86 %: id `0xf44a2ac2f5718ff156ef10a378414d99ae20842c815198f88e3b752dd64d7f1a`.
+Morpho market TSLA/USDG, LLTV 86 %: id `0x165f9db8f5e1d9982a35dfaadb3f944cf747970c8f819f16f10105f5c7eb6e04`.
 
-All 12 deployed contracts are source-verified on the explorer (full match, solc 0.8.19, `paris`), so every link above opens readable code; USDG is Paxos's own proxy.
+All 11 deployed contracts are source-verified on the explorer (full match, solc 0.8.19, `paris`), so every link above opens readable code; TSLA and USDG are Robinhood's and Paxos's own proxies.
 
-The testnet has no Chainlink feed, so `MockFeed` stands in for NVDA/USD. The real feed has a 24 h heartbeat on trading days; to give the mock the same liveness, the [`feed-heartbeat`](.github/workflows/feed-heartbeat.yml) workflow re-stamps it (same answer, new `updatedAt`) at 13:00 and 17:00 UTC on weekdays from a throwaway key, `0x85120423aeD49e59F92C9D68aB9102402f37A6FC`, that can do nothing else. Without it `feedIsUsable` would fail closed (`VigilStale`) 18 h after the next session close — the intended behaviour for a dead feed, but not what a visitor should see on a demo.
+The testnet has no Chainlink feed, so `MockFeed` stands in for TSLA/USD (started at 364.27, TSLA's 18 Sep 2026 close). The real feed has a 24 h heartbeat on trading days; to give the mock the same liveness, the [`feed-heartbeat`](.github/workflows/feed-heartbeat.yml) workflow re-stamps it (same answer, new `updatedAt`) at 13:00 and 17:00 UTC on weekdays from a throwaway key, `0x85120423aeD49e59F92C9D68aB9102402f37A6FC`, that can do nothing else. Without it `feedIsUsable` would fail closed (`VigilStale`) 18 h after the next session close — the intended behaviour for a dead feed, but not what a visitor should see on a demo.
 
-Quick liveness check (the oracle answers with the session-aware price — on a weekend it reads `CLOSED` and applies the 500 bps cap):
+Quick liveness check (the oracle answers with the session-aware price in USDG per TSLA, 1e36 scale — on a weekend it reads `CLOSED` and applies the 500 bps cap):
 
 ```bash
 RPC=https://rpc.testnet.chain.robinhood.com
@@ -351,6 +353,8 @@ Facts checked with `cast`/`curl` against the official Robinhood Chain RPCs on 19
 | V13 | USDG freeze | `isFrozen(address)` exists |
 | V14 | Morpho `repay(onBehalf)` / callbacks | canonical bytecode ✅ |
 | V15 | NYSE calendar 2024–2028 | ✅ verified 19 Sep 2026: all 50 closures + 11 early closes match nyse.com/markets/hours-calendars (2026–2028 on the current page; 2024–2025 via Wayback snapshots of 29 May 2024 and 5 Mar 2025; the ad-hoc 9 Jan 2025 closure via the ICE/NYSE release), DST 2022–2030 matches `zoneinfo`; pinned by `test_calendar_matchesOfficialNyse2024to2028`. The live v2 calendar carries 2024–2027; 2028 is embedded for the next deployment and can be added to v2 by the guardian (add-only) |
+| V16 | Paxos USDG on the testnet | ✅ `0x7E955252E15c84f5768B83c41a71F9eba181802F` — `Global Dollar`, 6 decimals, EIP-1967 proxy, `isFrozen`; 100/day from faucet.paxos.com ("Robinhood Chain Testnet" is a listed network); 2,909 holders |
+| V17 | Robinhood stock tokens on the testnet | ✅ TSLA `0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E`, AMD `0x7117…778d`, AMZN `0x5884…9E02`, NFLX `0x3b82…8C93`, PLTR `0x1FBE…98d0` — BeaconProxies (569 bytes, like mainnet NVDA) of the verified `Stock` implementation, registered in `AccessControlsRegistry` `0x1dF3…6Ca5`, 220–287 k holders each, 5 per faucet claim; `uiMultiplier`/`newUIMultiplier`/`effectiveAt` present, **`oraclePaused()` absent** (mainnet has it) → probed at `registerAsset`. An official NVDA (`0x9970…a737`) exists with zero supply |
 
 </details>
 
