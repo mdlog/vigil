@@ -215,20 +215,20 @@ cast call 0xa86a812b837bab077828312221a85b3505bf1ca7 "regimeOf(address)(uint8,ui
 
 ### End-to-end run on the live testnet
 
-`script/E2E.s.sol` drives the deployed contracts through a full cycle with five throwaway actors and asserts every step (if any `require` fails in simulation, nothing is broadcast). The USDG is real: the deployer hands Paxos USDG from the faucet to the actors in phase 0 (207 USDG per run); the NVDA collateral is minted from the mock. Run on 2026-09-19 against deployment v3 — 37 transactions, blocks 121829426–121829723, gas 5,372,831 (this is the run in the video):
+`script/E2E.s.sol` drives the deployed contracts through a full cycle with five throwaway actors and asserts every step (if any `require` fails in simulation, nothing is broadcast). Nothing is minted: the deployer hands the actors Paxos USDG from the faucet (267 USDG per run) and Robinhood's TSLA tokens (0.15 per borrower) in phase 0. Run on 2026-09-19 against deployment v4 — 37 transactions, blocks 121839842–121840206, gas 5,784,531 (this is the run in the video):
 
 | Phase | What happened | Evidence |
 |---|---|---|
-| 0 Fund | the deployer sent gas and 207 Paxos USDG to the five actors | [`transfer`](https://explorer.testnet.chain.robinhood.com/tx/0x41f513d33d7f57bfa2d51c25003b60dd2b0992a51ee1eabc6aeaa077477f7f98) |
-| 1 Supply | Alice supplied 100 USDG | [`supply`](https://explorer.testnet.chain.robinhood.com/tx/0xa2527ae03a8b6ba395ffcb421f668adea2156052c2d6858d0cba8b8cb44f9197) |
-| 2 Borrow | Bob and Erin each posted 0.25 NVDA and borrowed 24.48 USDG at the haircut price (114.00), LTV 85.9 % | [`borrow`](https://explorer.testnet.chain.robinhood.com/tx/0x9866e493a134a5360d50d68973b0d3367fe3fcdbd05c7ec9b15e296c19905830) |
-| 3 Member | both authorized `VigilPreLiquidation` and funded their premium escrow | [`topUp`](https://explorer.testnet.chain.robinhood.com/tx/0xabd0fdbe62ce0746c02df74b4aca51eb5f35e731a0117aa09c585c51968eb0c0) |
-| 4 Backstop | Carol deposited 50 USDG and requested a 10 % exit (7-day cooldown) | [`deposit`](https://explorer.testnet.chain.robinhood.com/tx/0x36e5d58edfb5116a270388454664b52ccb22f291c07bf3447965c37ccba59422) |
-| 5 Keeper | attestation delayed Monday's open by one hour: closure 65.5 h → 66.5 h | [`attest`](https://explorer.testnet.chain.robinhood.com/tx/0x944ab1574e0a433c9b8731ee60275f3e2c0416287d1f9543ae68897b747b6778) |
-| 6 Unwind | Dave repaid 7.74 USDG for Bob at a 3 % discount → Bob 80 % LTV | [`preLiquidate`](https://explorer.testnet.chain.robinhood.com/tx/0x588f3ed4f36d6bbae10a1efb4c9dfa94a1d2760a146ff0b68487adfed749ac0d) |
-| 7 Gap | feed −14.18 % (5 Aug 2024 replay): oracle 114.00 → 97.83 | [`set`](https://explorer.testnet.chain.robinhood.com/tx/0x26b7b1a530524b0d68bbb2e222389efe46ed7c9a073f164cfa70c742bd44db82) |
-| 8 Cover | Erin's shortfall 1.05 USDG paid by the backstop inside `liquidateWithCover`; Bob needed no cover; suppliers' assets unchanged | [`liquidateWithCover`](https://explorer.testnet.chain.robinhood.com/tx/0x6275783af1ab2b6e5abf969cbbd344447daa63585821258b2c0c09978528c743) |
-| 9 Restore | feed back to 120.00; backstop 50.00 → 48.95 USDG | [`set`](https://explorer.testnet.chain.robinhood.com/tx/0x86fd3a23f332447f7a52f7996fb9feb489dc2553a3707fa000ffda45693329c0) |
+| 0 Fund | the deployer sent gas, 267 Paxos USDG and 0.30 Robinhood TSLA to the five actors | [`TSLA transfer`](https://explorer.testnet.chain.robinhood.com/tx/0xf0a0355f304048124521222efbc55b741b5e566c7842913d4f46ad1bbfcb29f0) |
+| 1 Supply | Alice supplied 120 USDG | [`supply`](https://explorer.testnet.chain.robinhood.com/tx/0x4bce6a72580f713cae0308b4dc079c7e29c5c8d8b1721689a73f6ecb78f57beb) |
+| 2 Borrow | Bob and Erin each posted 0.15 TSLA and borrowed 44.59 USDG at the haircut price (346.05), LTV 85.9 % | [`borrow`](https://explorer.testnet.chain.robinhood.com/tx/0xc21a67c879e9fcbfc7d0978795fc74b00f3dc259c07a05e0b0ae006b2051eb6e) |
+| 3 Member | both authorized `VigilPreLiquidation` and funded their premium escrow | [`topUp`](https://explorer.testnet.chain.robinhood.com/tx/0x73f66dcc61de53d811459a5c6e84499c7b4505291fd78b7ec12e07d0ee7680a9) |
+| 4 Backstop | Carol deposited 50 USDG and requested a 10 % exit (7-day cooldown) | [`deposit`](https://explorer.testnet.chain.robinhood.com/tx/0x732cd26ae56656de49d129d3e371aae35291eb422918f79e2e03d95a8f5e3706) |
+| 5 Keeper | attestation delayed Monday's open by one hour: closure 65.5 h → 66.5 h | [`attest`](https://explorer.testnet.chain.robinhood.com/tx/0xfd3b03f8526e6910fdd0d37433ba67182c07e712c5a95e67580fbffcbba32a79) |
+| 6 Unwind | Dave repaid 14.10 USDG for Bob at a 3 % discount → Bob 80 % LTV | [`preLiquidate`](https://explorer.testnet.chain.robinhood.com/tx/0xacfd9d8103c39f2ce453513983f82c4f6b1404eee779632dc813ed99f7e35fdc) |
+| 7 Gap | feed −10.81 % (TSLA's 5 Aug 2024 weekend gap, from the calibration): oracle 346.05 → 308.64 | [`set`](https://explorer.testnet.chain.robinhood.com/tx/0xcd94a181c02a08f1f6ed08b94dba9d9482031577278971e2b4d0d49d887a97c8) |
+| 8 Cover | Erin's shortfall 0.24 USDG paid by the backstop inside `liquidateWithCover`; Bob needed no cover; suppliers' assets unchanged | [`liquidateWithCover`](https://explorer.testnet.chain.robinhood.com/tx/0x98e9fbf1e2382f6b7f0cca84105d465f5c41eff401f767eb70b1decf3502939a) |
+| 9 Restore | feed back to 364.27; backstop 50.00 → 49.76 USDG | [`set`](https://explorer.testnet.chain.robinhood.com/tx/0xc433a0cf03cdd81bb7d29e68c2b70edf72fc040ddbcb756832c34e204bcd4292) |
 
 ```bash
 forge script script/E2E.s.sol --rpc-url robinhood_testnet --broadcast --slow --gas-estimate-multiplier 200 -vv
