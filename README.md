@@ -151,13 +151,13 @@ Dependencies are pinned through `foundry.lock`: `morpho-blue` v1.0.0, `openzeppe
 
 `script/Deploy.s.sol` deploys one NVDA/USDG market, each contract directly from the EOA. Every dependency is
 read from the environment; anything left unset falls back to a mock (testnet 46630 has no Morpho, Chainlink
-feeds or stock tokens, verified on-chain on 19 Sep 2026; mainnet 4663 has all of them).
+feeds or stock tokens, verified on-chain on 19 Sep 2026 — but it does have Paxos USDG; mainnet 4663 has all of them).
 
 | Variable | Meaning | Mainnet 4663 value | Fallback |
 |---|---|---|---|
 | `MORPHO` | Morpho Blue | `0x9D53d5E3bd5E8d4Cbfa6DB1ca238AEA02E651010` | deploy Morpho Blue from source |
 | `IRM` | interest rate model | `0x2BD3d5965B26B51814AC95127B2b80dD6CcC0fa1` (AdaptiveCurveIRM) | `MockIRM` |
-| `USDG` | loan token (6 decimals) | `0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168` | `MockUSDG` |
+| `USDG` | loan token (6 decimals) | `0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168` (testnet: Paxos `0x7E955252E15c84f5768B83c41a71F9eba181802F`) | `MockUSDG` |
 | `STOCK_TOKEN` | ERC-8056 collateral | NVDA `0xd0601CE157Db5bdC3162BbaC2a2C8aF5320D9EEC` | `MockStockToken` |
 | `FEED` | Chainlink price feed | NVDA/USD `0x379EC4f7C378F34a1B47E4F3cbeBCbAC3E8E9F15` | `MockFeed` |
 | `USDG_FEED` | USDG/USD feed | `0x61B7e5650328764B076A108EFF5fa7282a1B9aD2` | assume $1 |
@@ -179,27 +179,27 @@ forge script script/Deploy.s.sol --rpc-url robinhood_testnet --broadcast
 
 ### Live deployment — Robinhood Chain testnet (chain ID 46630)
 
-Deployed 2026-09-19 from `0x90351bB1E85a17D5f70c62C0cC076D39D897076D` (also `guardian`, `calibrator` and `keeperSigner`), 26 transactions, 28.14 M gas. Full manifest with transaction hashes: [`deployments/robinhood-testnet-46630.json`](deployments/robinhood-testnet-46630.json); Foundry broadcast log under `broadcast/Deploy.s.sol/46630/`. The first deployment of the day (before the tightening-ramp fix, see Design notes) is kept as [`deployments/robinhood-testnet-46630-v1.json`](deployments/robinhood-testnet-46630-v1.json) for provenance (the first take of the demo video was filmed against it; the current video is the v2 run below).
+Deployment **v3**, 2026-09-19 21:53 UTC, from `0x90351bB1E85a17D5f70c62C0cC076D39D897076D` (also `guardian`, `calibrator` and `keeperSigner`), 25 transactions, 27.13 M gas. The loan token is the **real USDG**: Paxos issues Global Dollar on the Robinhood Chain testnet (the only official token there besides bridged WETH — the testnet has no stock tokens, Chainlink feeds or Morpho, verified on-chain and in the [Robinhood](https://docs.robinhood.com/chain/protocol-contracts) and [Chainlink](https://docs.chain.link/data-feeds/tokenized-equity-feeds/robinhood) docs on 19–20 Sep 2026), so the market, the premium escrow and the backstop hold Paxos USDG while the NVDA token, the feed and the IRM stay mocks. Full manifest with transaction hashes: [`deployments/robinhood-testnet-46630.json`](deployments/robinhood-testnet-46630.json); Foundry broadcast log under `broadcast/Deploy.s.sol/46630/`. Earlier deployments are kept for provenance: [v1](deployments/robinhood-testnet-46630-v1.json) (before the tightening-ramp fix) and [v2](deployments/robinhood-testnet-46630-v2.json) (mock USDG; the first two takes of the video).
 
 | Contract | Address |
 |---|---|
-| `VigilCalendar` | [`0x3Ffe81615B8B1909f684e9a7c1Eb82a38c0A0b8C`](https://explorer.testnet.chain.robinhood.com/address/0x3Ffe81615B8B1909f684e9a7c1Eb82a38c0A0b8C) |
-| `VigilSessionOracle` | [`0x575a54Bc6D25e19b60Fc67B5cCea09Bfee12a0fD`](https://explorer.testnet.chain.robinhood.com/address/0x575a54Bc6D25e19b60Fc67B5cCea09Bfee12a0fD) |
-| `VigilRiskEngine` | [`0xb92B73E35C740F2893c949110A742E31554fc2aE`](https://explorer.testnet.chain.robinhood.com/address/0xb92B73E35C740F2893c949110A742E31554fc2aE) |
-| `VigilOracle` | [`0x445A820a0F3AeE54E43715620938e71b04a2974e`](https://explorer.testnet.chain.robinhood.com/address/0x445A820a0F3AeE54E43715620938e71b04a2974e) |
-| `VigilPremium` | [`0xFb3E7B6b169FDF655d76D6984A895bFA4703Bb70`](https://explorer.testnet.chain.robinhood.com/address/0xFb3E7B6b169FDF655d76D6984A895bFA4703Bb70) |
-| `VigilBackstop` | [`0x27873298da0D56c3EFB17bdF7a39e1C4808149b9`](https://explorer.testnet.chain.robinhood.com/address/0x27873298da0D56c3EFB17bdF7a39e1C4808149b9) |
-| `VigilPreLiquidation` | [`0x824a6d52Ad196796BfeA76b8754fddC111F70b07`](https://explorer.testnet.chain.robinhood.com/address/0x824a6d52Ad196796BfeA76b8754fddC111F70b07) |
-| `VigilLossReporter` | [`0x740c6CA8C04C5f528Db86f1779A467bf91424984`](https://explorer.testnet.chain.robinhood.com/address/0x740c6CA8C04C5f528Db86f1779A467bf91424984) |
-| Morpho Blue (deployed from source — testnet has none) | [`0x62ded950D641CbDC935eB6F28Be19912c84afAd9`](https://explorer.testnet.chain.robinhood.com/address/0x62ded950D641CbDC935eB6F28Be19912c84afAd9) |
-| MockUSDG (loan token, 6 decimals) | [`0xf6349DfD96DAbdf6ed596f25e272060E5E6860EF`](https://explorer.testnet.chain.robinhood.com/address/0xf6349DfD96DAbdf6ed596f25e272060E5E6860EF) |
-| MockStockToken NVDA (ERC-8056 mock, collateral) | [`0x78E2A9b5a2e725B4fCFeA23Cb4f9Aa8232491f90`](https://explorer.testnet.chain.robinhood.com/address/0x78E2A9b5a2e725B4fCFeA23Cb4f9Aa8232491f90) |
-| MockFeed NVDA/USD (8 decimals) | [`0xa21b9aaa5E7074E7171Cb8B3b166BcFAba36e9C3`](https://explorer.testnet.chain.robinhood.com/address/0xa21b9aaa5E7074E7171Cb8B3b166BcFAba36e9C3) |
-| MockIRM | [`0xa41Bfe7f75719bA17aE7046929dF7a89E580Dbc3`](https://explorer.testnet.chain.robinhood.com/address/0xa41Bfe7f75719bA17aE7046929dF7a89E580Dbc3) |
+| `VigilCalendar` | [`0x2c9586b92e9c5c3c27e899920e11af7f8227e1c1`](https://explorer.testnet.chain.robinhood.com/address/0x2c9586b92e9c5c3c27e899920e11af7f8227e1c1) |
+| `VigilSessionOracle` | [`0xa86a812b837bab077828312221a85b3505bf1ca7`](https://explorer.testnet.chain.robinhood.com/address/0xa86a812b837bab077828312221a85b3505bf1ca7) |
+| `VigilRiskEngine` | [`0x0f0868173f1be1dab8fecccb67acb7a4fe5c493a`](https://explorer.testnet.chain.robinhood.com/address/0x0f0868173f1be1dab8fecccb67acb7a4fe5c493a) |
+| `VigilOracle` | [`0xf2beee25008e34d5bf6cf948f3f1fd1baea1a865`](https://explorer.testnet.chain.robinhood.com/address/0xf2beee25008e34d5bf6cf948f3f1fd1baea1a865) |
+| `VigilPremium` | [`0xa26725997452b60ac72f46f9e242f67b6b80fd81`](https://explorer.testnet.chain.robinhood.com/address/0xa26725997452b60ac72f46f9e242f67b6b80fd81) |
+| `VigilBackstop` | [`0x252674b07187e0aca5ecab2484d9949c0b766516`](https://explorer.testnet.chain.robinhood.com/address/0x252674b07187e0aca5ecab2484d9949c0b766516) |
+| `VigilPreLiquidation` | [`0xf58a5e7e24cc346b59bf6169be1841304f8438ea`](https://explorer.testnet.chain.robinhood.com/address/0xf58a5e7e24cc346b59bf6169be1841304f8438ea) |
+| `VigilLossReporter` | [`0x53d87458c47e0d7af9eec17e82a5e15fca9eba95`](https://explorer.testnet.chain.robinhood.com/address/0x53d87458c47e0d7af9eec17e82a5e15fca9eba95) |
+| **USDG — Global Dollar, issued by Paxos on the testnet** (loan token, 6 decimals, EIP-1967 proxy, `isFrozen`; 100 USDG/day from [faucet.paxos.com](https://faucet.paxos.com/)) | [`0x7E955252E15c84f5768B83c41a71F9eba181802F`](https://explorer.testnet.chain.robinhood.com/address/0x7E955252E15c84f5768B83c41a71F9eba181802F) |
+| Morpho Blue (deployed from source — testnet has none) | [`0x34089d5061a9f5330b8674c16d44bc76b551feab`](https://explorer.testnet.chain.robinhood.com/address/0x34089d5061a9f5330b8674c16d44bc76b551feab) |
+| MockStockToken NVDA (ERC-8056 mock, collateral) | [`0xf20f6806d85e65e4375ced9903fb72055307bc29`](https://explorer.testnet.chain.robinhood.com/address/0xf20f6806d85e65e4375ced9903fb72055307bc29) |
+| MockFeed NVDA/USD (8 decimals) | [`0x0ae314e93d5722b7d7c6fcaac87d3e139f65e97c`](https://explorer.testnet.chain.robinhood.com/address/0x0ae314e93d5722b7d7c6fcaac87d3e139f65e97c) |
+| MockIRM | [`0x116f2dd1a7999995b1123d8f0541ac25b538dfa9`](https://explorer.testnet.chain.robinhood.com/address/0x116f2dd1a7999995b1123d8f0541ac25b538dfa9) |
 
-Morpho market NVDA/USDG, LLTV 86 %: id `0x4b7339b6469bf06ff83ec7ec4baa995f2589ae7782d11b2ba6d02c2c218a5145`.
+Morpho market NVDA/USDG, LLTV 86 %: id `0xf44a2ac2f5718ff156ef10a378414d99ae20842c815198f88e3b752dd64d7f1a`.
 
-All 13 contracts are source-verified on the explorer (full match, solc 0.8.19, `paris`), so every link above opens readable code.
+All 12 deployed contracts are source-verified on the explorer (full match, solc 0.8.19, `paris`), so every link above opens readable code; USDG is Paxos's own proxy.
 
 The testnet has no Chainlink feed, so `MockFeed` stands in for NVDA/USD. The real feed has a 24 h heartbeat on trading days; to give the mock the same liveness, the [`feed-heartbeat`](.github/workflows/feed-heartbeat.yml) workflow re-stamps it (same answer, new `updatedAt`) at 13:00 and 17:00 UTC on weekdays from a throwaway key, `0x85120423aeD49e59F92C9D68aB9102402f37A6FC`, that can do nothing else. Without it `feedIsUsable` would fail closed (`VigilStale`) 18 h after the next session close — the intended behaviour for a dead feed, but not what a visitor should see on a demo.
 
@@ -207,25 +207,26 @@ Quick liveness check (the oracle answers with the session-aware price — on a w
 
 ```bash
 RPC=https://rpc.testnet.chain.robinhood.com
-cast call 0x445A820a0F3AeE54E43715620938e71b04a2974e "price()(uint256)" --rpc-url $RPC
-cast call 0x575a54Bc6D25e19b60Fc67B5cCea09Bfee12a0fD "regimeOf(address)(uint8,uint8,uint64,uint64)" 0x78E2A9b5a2e725B4fCFeA23Cb4f9Aa8232491f90 --rpc-url $RPC
+cast call 0xf2beee25008e34d5bf6cf948f3f1fd1baea1a865 "price()(uint256)" --rpc-url $RPC
+cast call 0xa86a812b837bab077828312221a85b3505bf1ca7 "regimeOf(address)(uint8,uint8,uint64,uint64)" 0xf20f6806d85e65e4375ced9903fb72055307bc29 --rpc-url $RPC
 ```
 
 ### End-to-end run on the live testnet
 
-`script/E2E.s.sol` drives the deployed contracts through a full cycle with five throwaway actors and asserts every step (if any `require` fails in simulation, nothing is broadcast). Run on 2026-09-19 against the deployment above — 37 transactions, blocks 121648116–121648449, gas 4,931,348 (this is the run in the video):
+`script/E2E.s.sol` drives the deployed contracts through a full cycle with five throwaway actors and asserts every step (if any `require` fails in simulation, nothing is broadcast). The USDG is real: the deployer hands Paxos USDG from the faucet to the actors in phase 0 (207 USDG per run); the NVDA collateral is minted from the mock. Run on 2026-09-19 against deployment v3 — 37 transactions, blocks 121829426–121829723, gas 5,372,831 (this is the run in the video):
 
 | Phase | What happened | Evidence |
 |---|---|---|
-| 1 Supply | Alice supplied 10,000 mock USDG | [`supply`](https://explorer.testnet.chain.robinhood.com/tx/0xa91da69764acf30650e03ddd6ad653b3818783b98ed9a0b6677f7cf85ba8052c) |
-| 2 Borrow | Bob and Erin each posted 10 NVDA and borrowed 979.26 USDG at the haircut price (114.00), LTV 85.9 % | [`borrow`](https://explorer.testnet.chain.robinhood.com/tx/0x26b2b48f8d5191a824223d4f8b8b42d8e950d014d6e13785803ce9c7f96cc98a) |
-| 3 Member | both authorized `VigilPreLiquidation` and funded their premium escrow | [`topUp`](https://explorer.testnet.chain.robinhood.com/tx/0x1ec981139074dcc5081cda21266cf2ee2afc47aadc05d08ed2f5f5ae36a050ed) |
-| 4 Backstop | Carol deposited 5,000 USDG and requested a 10 % exit (7-day cooldown) | [`deposit`](https://explorer.testnet.chain.robinhood.com/tx/0xfde733c09fde6a7d2ae955f59e27caf5705e7b8b19d635111b29798fe02a4b2f) |
-| 5 Keeper | attestation delayed Monday's open by one hour: closure 65.5 h → 66.5 h | [`attest`](https://explorer.testnet.chain.robinhood.com/tx/0x763d98d3063fe19f25626b23ab488040e1c4c8c19444150864783b0c68706c9f) |
-| 6 Unwind | Dave repaid 309.67 USDG for Bob at a 3 % discount → Bob 80 % LTV | [`preLiquidate`](https://explorer.testnet.chain.robinhood.com/tx/0x27fa67f58f4b19921390a140a51f0ee196f3ad238bbff2481f7cd62ca4e5c26c) |
-| 7 Gap | feed −14.18 % (5 Aug 2024 replay): oracle 114.00 → 97.83 | [`set`](https://explorer.testnet.chain.robinhood.com/tx/0x7f06fb247af701c2c95e070696c3bd1b8bf83e2dfbb571a6bb9a6e004320cdb0) |
-| 8 Cover | Erin's shortfall 42.00 USDG paid by the backstop inside `liquidateWithCover`; Bob needed no cover; suppliers' assets unchanged | [`liquidateWithCover`](https://explorer.testnet.chain.robinhood.com/tx/0x439f79b2462a159b5339bc18422256272dd4c8106f65ba9d30fb006ac5aef7e0) |
-| 9 Restore | feed back to 120.00; backstop 5,000 → 4,957.95 USDG | [`set`](https://explorer.testnet.chain.robinhood.com/tx/0xa1dcba74f9f6d703660bc960648c063e48be9d649fd32298508c25a7b9e3ad4d) |
+| 0 Fund | the deployer sent gas and 207 Paxos USDG to the five actors | [`transfer`](https://explorer.testnet.chain.robinhood.com/tx/0x41f513d33d7f57bfa2d51c25003b60dd2b0992a51ee1eabc6aeaa077477f7f98) |
+| 1 Supply | Alice supplied 100 USDG | [`supply`](https://explorer.testnet.chain.robinhood.com/tx/0xa2527ae03a8b6ba395ffcb421f668adea2156052c2d6858d0cba8b8cb44f9197) |
+| 2 Borrow | Bob and Erin each posted 0.25 NVDA and borrowed 24.48 USDG at the haircut price (114.00), LTV 85.9 % | [`borrow`](https://explorer.testnet.chain.robinhood.com/tx/0x9866e493a134a5360d50d68973b0d3367fe3fcdbd05c7ec9b15e296c19905830) |
+| 3 Member | both authorized `VigilPreLiquidation` and funded their premium escrow | [`topUp`](https://explorer.testnet.chain.robinhood.com/tx/0xabd0fdbe62ce0746c02df74b4aca51eb5f35e731a0117aa09c585c51968eb0c0) |
+| 4 Backstop | Carol deposited 50 USDG and requested a 10 % exit (7-day cooldown) | [`deposit`](https://explorer.testnet.chain.robinhood.com/tx/0x36e5d58edfb5116a270388454664b52ccb22f291c07bf3447965c37ccba59422) |
+| 5 Keeper | attestation delayed Monday's open by one hour: closure 65.5 h → 66.5 h | [`attest`](https://explorer.testnet.chain.robinhood.com/tx/0x944ab1574e0a433c9b8731ee60275f3e2c0416287d1f9543ae68897b747b6778) |
+| 6 Unwind | Dave repaid 7.74 USDG for Bob at a 3 % discount → Bob 80 % LTV | [`preLiquidate`](https://explorer.testnet.chain.robinhood.com/tx/0x588f3ed4f36d6bbae10a1efb4c9dfa94a1d2760a146ff0b68487adfed749ac0d) |
+| 7 Gap | feed −14.18 % (5 Aug 2024 replay): oracle 114.00 → 97.83 | [`set`](https://explorer.testnet.chain.robinhood.com/tx/0x26b7b1a530524b0d68bbb2e222389efe46ed7c9a073f164cfa70c742bd44db82) |
+| 8 Cover | Erin's shortfall 1.05 USDG paid by the backstop inside `liquidateWithCover`; Bob needed no cover; suppliers' assets unchanged | [`liquidateWithCover`](https://explorer.testnet.chain.robinhood.com/tx/0x6275783af1ab2b6e5abf969cbbd344447daa63585821258b2c0c09978528c743) |
+| 9 Restore | feed back to 120.00; backstop 50.00 → 48.95 USDG | [`set`](https://explorer.testnet.chain.robinhood.com/tx/0x86fd3a23f332447f7a52f7996fb9feb489dc2553a3707fa000ffda45693329c0) |
 
 ```bash
 forge script script/E2E.s.sol --rpc-url robinhood_testnet --broadcast --slow --gas-estimate-multiplier 200 -vv

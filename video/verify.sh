@@ -22,7 +22,7 @@ n = {x["id"]: x["text"] for x in json.loads(subprocess.check_output(["node", "--
 fmt = lambda v, d=2: f"{v:,.{d}f}"
 checks = [
     (f"{fmt(t['erinShortfallUsdg'])} USDG" in n["04-gap-liquidate"], "shortfall"),
-    (f"post {fmt(t['collateralNvda'], 1)} NVDA" in n["01-supply-borrow"], "collateral"),
+    (f"post {fmt(t['collateralNvda'])} NVDA" in n["01-supply-borrow"], "collateral"),
     (f"falls to {fmt(t['priceAfter'])}" in n["04-gap-liquidate"], "price after gap"),
     (f"{t['txCount']} transactions" in n["05-restore-end"], "tx count"),
     (f"{fmt(t['backstopAfterUsdg'])} USDG" in n["05-restore-end"], "backstop after"),

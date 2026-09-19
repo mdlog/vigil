@@ -174,7 +174,7 @@ export function narration(id: string, t: Take): string {
     case "00-title":
       return `Vigil prices the risk that a stock market is closed. This is the public dashboard reading Robinhood Chain testnet, on a Saturday: the exchange regime is closed, the feed is frozen at ${fmt(t.feedBefore)}, and Vigil's oracle already reports ${fmt(t.priceBefore)}. On the right, a Foundry script starts a real end-to-end run. It funds five throwaway actors first, with gas and with Paxos USDG.`;
     case "01-supply-borrow":
-      return `Alice supplies ${fmt(t.supplyUsdg, 0)} USDG to the NVDA market. Bob and Erin each post ${fmt(t.collateralNvda, 1)} NVDA and borrow ${fmt(t.debtUsdg, 2)} USDG — ${pct(t.ltv0Bps)} percent loan-to-value against a price that already carries the weekend haircut. Watch the market line: borrowed and supplied move as the transactions confirm.`;
+      return `Alice supplies ${fmt(t.supplyUsdg, 0)} USDG to the NVDA market. Bob and Erin each post ${fmt(t.collateralNvda, 2)} NVDA and borrow ${fmt(t.debtUsdg, 2)} USDG — ${pct(t.ltv0Bps)} percent loan-to-value against a price that already carries the weekend haircut. Watch the market line: borrowed and supplied move as the transactions confirm.`;
     case "02-member-backstop":
       return `Both borrowers authorize Vigil's pre-liquidation and fund a premium escrow — that is what makes them members. Then Carol deposits ${fmt(t.backstopDepositUsdg, 0)} USDG into the first-loss backstop and requests ten percent back. Her exit waits seven days, so it always crosses a weekend.`;
     case "03-keeper-unwind":
