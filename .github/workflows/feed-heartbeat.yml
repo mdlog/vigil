@@ -1,0 +1,57 @@
+name: Feed heartbeat
+
+# Robinhood Chain testnet has no Chainlink feed, so the live deployment reads a MockFeed. The real NVDA/USD
+# feed on mainnet has a 24 h heartbeat on trading days; without an equivalent here the feed's updatedAt
+# would stay at the last manual set and VigilSessionOracle.feedIsUsable would fail closed (VigilStale)
+# 18 h after the next session close (marketStaleSeconds 6 h × hardStaleMult 3). This job re-stamps the
+# feed on US trading days — same answer, new updatedAt — from a throwaway funded key that can do nothing
+# else (MockFeed.set is permissionless). It never changes the price.
+
+on:
+  schedule:
+    - cron: '0 13,17 * * 1-5' # 13:00 and 17:00 UTC Mon–Fri, both inside the NYSE day (the second is a backup)
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: feed-heartbeat
+  cancel-in-progress: false
+
+jobs:
+  heartbeat:
+    name: Re-stamp MockFeed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Re-stamp the feed if its last update is older than 4 h
+        env:
+          RPC: https://rpc.testnet.chain.robinhood.com
+          FEED_KEEPER_KEY: ${{ secrets.FEED_KEEPER_KEY }}
+          MAX_AGE: '14400'
+        run: |
+          set -euo pipefail
+          FEED=$(jq -r .contracts.MockFeed.address deployments/robinhood-testnet-46630.json)
+          ROUND=$(cast call --rpc-url "$RPC" "$FEED" 'latestRoundData()(uint80,int256,uint256,uint256,uint80)')
+          ANSWER=$(sed -n 2p <<<"$ROUND" | awk '{print $1}')
+          UPDATED=$(sed -n 3p <<<"$ROUND" | awk '{print $1}')
+          NOW=$(date +%s)
+          AGE=$((NOW - UPDATED))
+          echo "feed $FEED answer=$ANSWER updatedAt=$UPDATED age=${AGE}s"
+          if [ "$AGE" -lt "$MAX_AGE" ]; then
+            echo "fresh enough (< ${MAX_AGE}s) — nothing to do"
+            exit 0
+          fi
+          if [ -z "$FEED_KEEPER_KEY" ]; then
+            echo "::error::FEED_KEEPER_KEY secret is not set — the feed will go stale"
+            exit 1
+          fi
+          TX=$(cast send --rpc-url "$RPC" --private-key "$FEED_KEEPER_KEY" --json "$FEED" 'set(int256)' "$ANSWER" | jq -r .transactionHash)
+          echo "re-stamped in $TX"
+          echo "https://explorer.testnet.chain.robinhood.com/tx/$TX" >> "$GITHUB_STEP_SUMMARY"

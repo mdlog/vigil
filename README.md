@@ -132,7 +132,7 @@ npm run abi            # regenerate src/abi from ../out after `forge build`
 git clone --recurse-submodules https://github.com/mdlog/vigil.git
 cd vigil
 forge build
-forge test                                   # 77 tests: unit, historical replay scenarios, invariants, fuzz regressions
+forge test                                   # 79 tests: unit, historical replay scenarios, invariants, fuzz regressions (+3 fork tests, see below)
 forge coverage --report summary --no-match-coverage "(test|script|mocks)"   # ≈93 % line coverage on src/
 ```
 
@@ -196,6 +196,10 @@ Deployed 2026-09-19 from `0x90351bB1E85a17D5f70c62C0cC076D39D897076D` (also `gua
 | MockIRM | [`0xa41Bfe7f75719bA17aE7046929dF7a89E580Dbc3`](https://explorer.testnet.chain.robinhood.com/address/0xa41Bfe7f75719bA17aE7046929dF7a89E580Dbc3) |
 
 Morpho market NVDA/USDG, LLTV 86 %: id `0x4b7339b6469bf06ff83ec7ec4baa995f2589ae7782d11b2ba6d02c2c218a5145`.
+
+All 13 contracts are source-verified on the explorer (full match, solc 0.8.19, `paris`), so every link above opens readable code.
+
+The testnet has no Chainlink feed, so `MockFeed` stands in for NVDA/USD. The real feed has a 24 h heartbeat on trading days; to give the mock the same liveness, the [`feed-heartbeat`](.github/workflows/feed-heartbeat.yml) workflow re-stamps it (same answer, new `updatedAt`) at 13:00 and 17:00 UTC on weekdays from a throwaway key, `0x85120423aeD49e59F92C9D68aB9102402f37A6FC`, that can do nothing else. Without it `feedIsUsable` would fail closed (`VigilStale`) 18 h after the next session close — the intended behaviour for a dead feed, but not what a visitor should see on a demo.
 
 Quick liveness check (the oracle answers with the session-aware price — on a weekend it reads `CLOSED` and applies the 500 bps cap):
 
@@ -379,7 +383,7 @@ test/
 
 ## Status and roadmap
 
-- [x] MVP: 8 contracts, 77 tests, historical replay demo
+- [x] MVP: 8 contracts, 79 tests, historical replay demo
 - [x] On-chain verification of every mainnet dependency (table above)
 - [x] Live on Robinhood Chain testnet 46630 (addresses above)
 - [x] Live dashboard on GitHub Pages
