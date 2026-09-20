@@ -17,7 +17,7 @@ order of the steps matters more than their speed.
 | G1 | `forge test` green, including the mainnet-fork suite | `forge test` (80) and `FOUNDRY_PROFILE=fork FOUNDRY_FORK_TESTS=1 forge test --match-path test/fork/MainnetFork.t.sol` (3) | ✅ |
 | G2 | Pre-flight passes against the live chain | `FOUNDRY_PROFILE=fork forge script script/MainnetPreflight.s.sol --rpc-url robinhood_mainnet -vv` → `PREFLIGHT PASS` | 26/27, only the deployer's ETH fails |
 | G3 | Deployer funded | ≥ 0.005 ETH on 4663 (the deployment is 24 tx ≈ 25.3 M gas ≈ 0.0033 ETH at 0.13 gwei); 0.01 ETH leaves room for the post-deploy calls | ❌ 0 ETH |
-| G4 | Role holders decided | `GUARDIAN` and `CALIBRATOR` are contracts (a Safe with a timelock) — or `ALLOW_EOA=true` is a conscious decision for the shadow period only; `KEEPER_SIGNER` is a hot key that holds gas only | open |
+| G4 | Role holders decided | `GUARDIAN` and `CALIBRATOR` are contracts (a Safe with a timelock) — or `ALLOW_EOA=true` is a conscious decision for the shadow period only; `KEEPER_SIGNER` is a hot key that holds gas only. Safe 1.4.1 and 1.3.0 singletons and proxy factories exist on 4663 at their canonical addresses (`0x29fc…C762`, `0x4e1D…ec67`, `0xd9Db…9552`, `0xa6B7…6AB2`; checked 20 Sep 2026), so a Safe can be created with `safe-cli` or `cast` even if the hosted web app does not list the chain | Safe available; addresses not chosen |
 | G5 | Someone can hold the stock token | Robinhood's mainnet stock tokens are transfer-restricted through their `AccessControlsRegistry`; the team must confirm an eligible wallet can hold NVDA to exercise the borrow path with real funds (the fork suite proves the path with a whale's tokens) | open |
 | G6 | Audit | `docs/AUDIT_SCOPE.md` — no external audit has been performed | ❌ |
 | G7 | Operator on call | a machine running `ops/keeper.ts` (`poke`, `unwind`, `liquidate` loops) and the `keeper-status` workflow pointed at the mainnet manifest | ready, not running |
@@ -227,6 +227,6 @@ What the roles can do, in order of severity:
 
 - No mainnet transaction has been sent; the deployer holds 0 ETH on 4663.
 - No external audit (`docs/AUDIT_SCOPE.md`).
-- No Safe addresses chosen; whether a Safe deployment exists on chain 4663 has not been checked.
+- No Safe addresses chosen (the Safe contracts are on the chain, see G4); whether app.safe.global lists chain 4663 has not been checked.
 - Whether the team can hold NVDA on mainnet (G5) has not been checked.
 - The `keeper-status` workflow still points at the testnet manifest (by design until step 6).
