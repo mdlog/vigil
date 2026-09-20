@@ -1,9 +1,9 @@
 import { createPublicClient, defineChain, http } from 'viem';
-import { CHAIN_ID, MULTICALL3, RPC_URL } from '../deployment';
+import { CHAIN_ID, MULTICALL3, NETWORK_NAME, RPC_URL } from '../deployment';
 
-export const robinhoodTestnet = defineChain({
+export const robinhoodChain = defineChain({
   id: CHAIN_ID,
-  name: 'Robinhood Chain Testnet',
+  name: NETWORK_NAME,
   nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
   rpcUrls: { default: { http: [RPC_URL] } },
   contracts: { multicall3: { address: MULTICALL3 } },
@@ -22,7 +22,7 @@ export function rpcOverride(search: string = typeof location !== 'undefined' ? l
 }
 
 export const client = createPublicClient({
-  chain: robinhoodTestnet,
+  chain: robinhoodChain,
   transport: http(rpcOverride() ?? RPC_URL, { timeout: 10_000, retryCount: 1 }),
 });
 export type Client = typeof client;

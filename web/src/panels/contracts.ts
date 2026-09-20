@@ -1,5 +1,5 @@
 import { el, svgEl } from '../ui/dom';
-import { ADDR, CONTRACT_ORDER, MARKET_ID, SYMBOL, TX_OF, explorerAddress, explorerTx, type ContractName } from '../deployment';
+import { ADDR, CONTRACT_ORDER, IS_TESTNET, MARKET_ID, SYMBOL, TX_OF, explorerAddress, explorerTx, type ContractName } from '../deployment';
 import { shortAddr } from '../ui/format';
 import type { Panel } from './types';
 
@@ -12,13 +12,21 @@ const ROLE: Record<ContractName, string> = {
   VigilBackstop: 'ERC-4626 first-loss tranche',
   VigilPreLiquidation: 'session-aware soft unwind (Morpho PreLiquidation pattern)',
   VigilLossReporter: 'liquidateWithCover: the backstop repays the shortfall before seizure',
-  Morpho: 'Morpho Blue, deployed from source (the testnet has none)',
-  USDG: 'Global Dollar — the real Paxos USDG issued on the testnet (faucet.paxos.com), 6 decimals',
+  Morpho: IS_TESTNET ? 'Morpho Blue, deployed from source (the testnet has none)' : 'Morpho Blue — the live singleton on Robinhood Chain',
+  IRM: 'AdaptiveCurveIRM — the live Morpho interest rate model',
+  USDG: IS_TESTNET ? 'Global Dollar — the real Paxos USDG issued on the testnet (faucet.paxos.com), 6 decimals' : 'Global Dollar — Paxos USDG, 6 decimals — the loan token',
   MockUSDG: 'mock loan token, 6 decimals',
-  StockToken: `Robinhood's own ${SYMBOL} stock token on the testnet (ERC-8056, registry 0x1dF3…6Ca5) — the collateral`,
+  StockToken: IS_TESTNET
+    ? `Robinhood's own ${SYMBOL} stock token on the testnet (ERC-8056, registry 0x1dF3…6Ca5) — the collateral`
+    : `Robinhood's ${SYMBOL} stock token (ERC-8056, transfer-restricted through its registry) — the collateral`,
   MockStockToken: `mock ERC-8056 ${SYMBOL} stock token`,
+  Feed: `Chainlink ${SYMBOL}/USD feed, 8 decimals — what VigilSessionOracle judges for freshness`,
+  UsdgFeed: 'Chainlink USDG/USD feed, 8 decimals — the quote leg of VigilOracle',
   MockFeed: `mock Chainlink ${SYMBOL}/USD feed, 8 decimals (the testnet has no Chainlink feeds)`,
   MockIRM: 'mock interest rate model',
+};
+const ISSUER: Partial<Record<ContractName, string>> = {
+  USDG: 'issued by Paxos', StockToken: 'issued by Robinhood', Morpho: 'Morpho Labs', IRM: 'Morpho Labs', Feed: 'Chainlink', UsdgFeed: 'Chainlink',
 };
 
 function flow(): SVGSVGElement {
@@ -67,7 +75,7 @@ export function createContracts(): Panel {
       el('td', { class: 'mono' }, el('a', { href: explorerAddress(ADDR[name]), target: '_blank', rel: 'noopener', text: shortAddr(ADDR[name]), title: ADDR[name] })),
       el('td', { class: 'mono' }, tx
         ? el('a', { href: explorerTx(tx), target: '_blank', rel: 'noopener', text: 'deploy tx ↗' })
-        : el('span', { class: 'muted', text: name === 'USDG' ? 'issued by Paxos' : 'issued by Robinhood' })),
+        : el('span', { class: 'muted', text: ISSUER[name] ?? 'external' })),
     );
   });
   const root = el('section', { class: 'panel reveal', id: 'contracts' },

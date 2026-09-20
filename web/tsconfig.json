@@ -9,7 +9,8 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "skipLibCheck": true,
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "paths": { "@manifest": ["../deployments/robinhood-testnet-46630.json"] }
   },
   "include": ["src", "test", "vite.config.ts"]
 }

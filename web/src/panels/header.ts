@@ -1,5 +1,5 @@
 import { el, setText } from '../ui/dom';
-import { ADDR, CHAIN_ID, EXPLORER } from '../deployment';
+import { ADDR, CHAIN_ID, EXPLORER, NETWORK_NAME } from '../deployment';
 import { isStale } from '../ui/poll';
 import type { Panel } from './types';
 
@@ -15,7 +15,7 @@ export function createHeader(): Panel {
       ),
     ),
     el('div', { class: 'header-right' },
-      el('span', { class: 'badge', text: `Robinhood Chain testnet · ${CHAIN_ID}` }),
+      el('span', { class: 'badge', text: `${NETWORK_NAME} · ${CHAIN_ID}` }),
       status,
       el('a', { class: 'link', href: 'https://github.com/mdlog/vigil', target: '_blank', rel: 'noopener', text: 'GitHub ↗' }),
       el('a', { class: 'link', href: `${EXPLORER}/address/${ADDR.VigilOracle}`, target: '_blank', rel: 'noopener', text: 'Explorer ↗' }),

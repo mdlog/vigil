@@ -1,5 +1,5 @@
 import type { PublicClient } from 'viem';
-import { ADDR, MARKET_ID, MULTICALL3 } from '../deployment';
+import { ADDR, ASSET, FEED, MARKET_ID, MULTICALL3 } from '../deployment';
 import { multicall3Abi } from '../abi/multicall3';
 import { vigilSessionOracleAbi } from '../abi/vigilSessionOracle';
 import { vigilRiskEngineAbi } from '../abi/vigilRiskEngine';
@@ -28,7 +28,7 @@ export interface Snapshot {
 
 export type MulticallResult = { status: 'success'; result: unknown } | { status: 'failure'; error: Error };
 
-const asset = () => ADDR.StockToken ?? ADDR.MockStockToken;
+const asset = () => ASSET;
 
 /** Order is the contract between coreCalls() and decodeCore(). Keep both in sync. */
 export const CORE_ORDER = [
@@ -69,7 +69,7 @@ export function coreCalls() {
     { ...backstop, functionName: 'totalCovered' },
     { ...backstop, functionName: 'COOLDOWN' },
     { address: ADDR.Morpho, abi: morphoAbi, functionName: 'market', args: [MARKET_ID] },
-    { address: ADDR.MockFeed, abi: mockFeedAbi, functionName: 'latestRoundData' },
+    { address: FEED, abi: mockFeedAbi, functionName: 'latestRoundData' }, // same signature as Chainlink's AggregatorV3
   ] as const;
 }
 

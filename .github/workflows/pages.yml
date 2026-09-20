@@ -5,6 +5,11 @@ on:
     branches: [main]
     paths: ['web/**', 'deployments/**', '.github/workflows/pages.yml']
   workflow_dispatch:
+    inputs:
+      manifest:
+        description: 'Deployment manifest the page is built against (repo-relative path)'
+        default: deployments/robinhood-testnet-46630.json
+        required: true
 
 permissions:
   contents: read
@@ -33,6 +38,10 @@ jobs:
         working-directory: web
       - run: npm run build
         working-directory: web
+        env:
+          # The manifest picks the network the page shows; the default is the testnet deployment. Manual runs may
+          # point it at deployments/robinhood-mainnet-4663.json once that deployment exists.
+          VIGIL_MANIFEST: ${{ inputs.manifest || 'deployments/robinhood-testnet-46630.json' }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: web/dist
