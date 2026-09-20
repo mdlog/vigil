@@ -51,7 +51,9 @@ VigilPremium ──── VigilBackstop ──── VigilLossReporter · VigilP
 | `VigilLossReporter` | `liquidateWithCover`: cover from the backstop, repay on behalf, then Morpho's liquidation |
 
 Eight immutable contracts (1.9 k lines of Solidity), no proxies, no pause. Design rationale, parameters and calibration:
-[docs/DESIGN.md](docs/DESIGN.md).
+[docs/DESIGN.md](docs/DESIGN.md). One periphery contract, `VigilMigrator`, moves a supply position from any other
+USDG market on the same Morpho into the Vigil market in one transaction (the Morpho authorisation is granted inside
+the call from an EIP-712 signature).
 
 ## Evidence
 
@@ -59,6 +61,7 @@ Eight immutable contracts (1.9 k lines of Solidity), no proxies, no pause. Desig
 |---|---|
 | Historical replay, NVDA/USDG at 86 % LLTV ([`script/Demo.s.sol`](script/Demo.s.sol)) | 5 Aug 2024 (−14.2 %) and 27 Jan 2025 (−12.5 %): control market socialised 40.59 and 30.95 USDG of bad debt per position, the Vigil market 0; a −12 % gap on a max-LTV member: 70.12 USDG shortfall paid by the backstop, suppliers untouched |
 | Live testnet, Robinhood's TSLA token and Paxos USDG ([run](docs/DEPLOYMENTS.md#end-to-end-run-on-the-live-testnet)) | 37 transactions through supply, borrow, membership, backstop, keeper attestation, soft unwind, a replayed −10.81 % gap and a covered liquidation ([cover tx](https://explorer.testnet.chain.robinhood.com/tx/0x98e9fbf1e2382f6b7f0cca84105d465f5c41eff401f767eb70b1decf3502939a)) |
+| Migration from a plain-oracle 62.5 % market ([demo](docs/DEPLOYMENTS.md#migration-demo--leaving-a-plain-oracle-market-in-one-transaction-20-sep-2026)) | a supplier's 20 USDG moved into the Vigil market from the dashboard with one signature and one transaction ([migrate tx](https://explorer.testnet.chain.robinhood.com/tx/0xf2a4148181c355fb5668d198b30aacd54dd593e9ebf1c36ccefaf68746a5380c)) |
 | Mainnet fork, real Morpho, AdaptiveCurveIRM, USDG, NVDA token and Chainlink feeds ([`test/fork`](test/fork/MainnetFork.t.sol)) | frozen Friday feed usable with the weekend haircut; real ERC-8056 flags; full weekend cycle with a 31.20 USDG shortfall covered on the real Morpho |
 | Calibration, four years of NVDA/AAPL/TSLA gaps ([`calibrator/`](calibrator/README.md)) | no closure in the sample produced bad debt on a Vigil market; the plain market took three |
 
@@ -110,6 +113,7 @@ contracts are source-verified on the [explorer](https://explorer.testnet.chain.r
 | `VigilBackstop` | [`0x031D0cAb44C9A42e2dACf51e0F3b3dcCE72356c9`](https://explorer.testnet.chain.robinhood.com/address/0x031d0cab44c9a42e2dacf51e0f3b3dcce72356c9) |
 | `VigilPreLiquidation` | [`0xa58609838474a30Ea1eBE77d59B6f786ABC55978`](https://explorer.testnet.chain.robinhood.com/address/0xa58609838474a30ea1ebe77d59b6f786abc55978) |
 | `VigilLossReporter` | [`0xC6E4428fD7cBAFBe9F1d2Bbca61C44eA984AFf16`](https://explorer.testnet.chain.robinhood.com/address/0xc6e4428fd7cbafbe9f1d2bbca61c44ea984aff16) |
+| `VigilMigrator` | [`0x4149C1B22DD10BA6CDc04e248aEC288642b67aD0`](https://explorer.testnet.chain.robinhood.com/address/0x4149c1b22dd10ba6cdc04e248aec288642b67ad0) |
 | TSLA (Robinhood, collateral) | [`0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E`](https://explorer.testnet.chain.robinhood.com/address/0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E) |
 | USDG (Paxos, loan token) | [`0x7E955252E15c84f5768B83c41a71F9eba181802F`](https://explorer.testnet.chain.robinhood.com/address/0x7E955252E15c84f5768B83c41a71F9eba181802F) |
 | Morpho Blue, MockFeed, MockIRM | [`0x9960…038b`](https://explorer.testnet.chain.robinhood.com/address/0x99607363652591fff66ba23ef8d91563ca48038b) · [`0x87AE…49C3`](https://explorer.testnet.chain.robinhood.com/address/0x87ae97dd57686e9fbc85ce9d33cc39b6594c49c3) · [`0xc15D…4630`](https://explorer.testnet.chain.robinhood.com/address/0xc15db6c9c5b7bad92c088e0918d5c720a5c44630) |
@@ -147,7 +151,7 @@ assumptions a reviewer should try to break. Report vulnerabilities privately to 
 ## Repository
 
 ```
-src/            the eight contracts, interfaces (IVigil, IAggregatorV3, IStockToken) and mocks
+src/            the eight contracts, periphery/VigilMigrator, interfaces (IVigil, IAggregatorV3, IStockToken) and mocks
 script/         Deploy, MainnetPreflight, Handover, Demo, E2E; manifest.mjs and verify.mjs
 test/           unit, scenarios (historical replays), invariants, fork (mainnet)
 ops/            keeper: status, poke, unwind, liquidate, attest

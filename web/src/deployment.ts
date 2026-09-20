@@ -6,7 +6,8 @@ import manifest from '@manifest';
 export type ContractName =
   | 'VigilCalendar' | 'VigilSessionOracle' | 'VigilRiskEngine' | 'VigilOracle'
   | 'VigilBackstop' | 'VigilPremium' | 'VigilPreLiquidation' | 'VigilLossReporter'
-  | 'Morpho' | 'IRM' | 'USDG' | 'MockUSDG' | 'StockToken' | 'MockStockToken' | 'Feed' | 'UsdgFeed' | 'MockFeed' | 'MockIRM';
+  | 'Morpho' | 'IRM' | 'USDG' | 'MockUSDG' | 'StockToken' | 'MockStockToken' | 'Feed' | 'UsdgFeed' | 'MockFeed' | 'MockIRM'
+  | 'VigilMigrator' | 'LegacyOracle';
 
 export const CHAIN_ID = manifest.chainId as number;
 export const NETWORK_NAME = ((manifest as { network?: string }).network ?? `chain ${CHAIN_ID}`) as string;
@@ -28,8 +29,11 @@ export const ADDR = Object.fromEntries(
 export const CONTRACT_ORDER: ContractName[] = ([
   'VigilCalendar', 'VigilSessionOracle', 'VigilRiskEngine', 'VigilOracle', 'VigilPremium',
   'VigilBackstop', 'VigilPreLiquidation', 'VigilLossReporter', 'Morpho', 'IRM', 'USDG', 'MockUSDG', 'StockToken', 'MockStockToken',
-  'Feed', 'UsdgFeed', 'MockFeed', 'MockIRM',
+  'Feed', 'UsdgFeed', 'MockFeed', 'MockIRM', 'VigilMigrator', 'LegacyOracle',
 ] as ContractName[]).filter((n) => n in manifest.contracts);
+
+/** The plain-oracle 62.5 % market of the migration demo, when the deployment has one. */
+export const LEGACY_MARKET_ID = ((manifest as { legacyMarket?: { id: string } }).legacyMarket?.id ?? null) as `0x${string}` | null;
 
 /** The collateral and its price feed, whichever kind this deployment has. */
 export const ASSET = (ADDR.StockToken ?? ADDR.MockStockToken) as `0x${string}`;

@@ -21,6 +21,9 @@ const RPC = flag('rpc', 'http://127.0.0.1:8549');
 const PAGE = flag('page', 'http://127.0.0.1:5173/vigil/');
 const ACCOUNT = flag('account', '0x90351bB1E85a17D5f70c62C0cC076D39D897076D'); // the testnet deployer: holds USDG and TSLA on the fork
 const OUT = flag('out', 'test/out');
+const KEY_ENV = flag('key-env'); // e.g. --key-env PRIVATE_KEY: sign locally instead of relying on anvil's impersonation
+const ONLY = flag('only'); // 'migrate' runs just the migration scenario (used for the recording)
+const RECORD = args.includes('--record'); // save a video of the session to OUT/
 fs.mkdirSync(OUT, { recursive: true });
 
 const rpc = async (method, params = []) => {
@@ -29,29 +32,50 @@ const rpc = async (method, params = []) => {
   if (j.error) throw new Error(`${method}: ${j.error.message}`);
   return j.result;
 };
-await rpc('anvil_setBalance', [ACCOUNT, '0x8AC7230489E80000']); // 10 ETH for gas
 const chainHex = await rpc('eth_chainId');
+let signer = null;
+if (KEY_ENV) {
+  const key = process.env[KEY_ENV];
+  if (!key) throw new Error(`${KEY_ENV} is not set`);
+  const { privateKeyToAccount } = await import('viem/accounts');
+  const { createWalletClient, createPublicClient, http, defineChain } = await import('viem');
+  const account = privateKeyToAccount(key);
+  const chain = defineChain({ id: Number(chainHex), name: 'chain', nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 }, rpcUrls: { default: { http: [RPC] } } });
+  signer = { account, wallet: createWalletClient({ account, chain, transport: http(RPC) }), pub: createPublicClient({ chain, transport: http(RPC) }) };
+  if (signer.account.address.toLowerCase() !== ACCOUNT.toLowerCase()) throw new Error(`--account must be the address of ${KEY_ENV}`);
+} else {
+  await rpc('anvil_setBalance', [ACCOUNT, '0x8AC7230489E80000']); // 10 ETH for gas on the fork
+}
 
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-// The mock wallet: accounts and chain are fixed, everything else goes straight to the fork.
-await page.addInitScript(({ account, rpcUrl, chainHex }) => {
+const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, ...(RECORD ? { recordVideo: { dir: OUT, size: { width: 1280, height: 900 } } } : {}) });
+const page = await context.newPage();
+// The wallet the page sees. Without --key-env it forwards everything to the fork (anvil --auto-impersonate signs);
+// with it, transactions and typed data are signed here in Node and only the raw transaction goes out.
+await page.exposeBinding('__walletRequest', async (_source, method, params) => {
+  if (method === 'eth_requestAccounts' || method === 'eth_accounts') return [ACCOUNT];
+  if (method === 'eth_chainId') return chainHex;
+  if (method === 'wallet_switchEthereumChain' || method === 'wallet_addEthereumChain') return null;
+  if (signer && method === 'eth_sendTransaction') {
+    const t = params[0];
+    return signer.wallet.sendTransaction({ to: t.to, data: t.data, value: t.value ? BigInt(t.value) : undefined, gas: t.gas ? BigInt(t.gas) : undefined });
+  }
+  if (signer && method === 'eth_signTypedData_v4') {
+    const td = JSON.parse(params[1]);
+    delete td.types.EIP712Domain;
+    return signer.account.signTypedData({ domain: td.domain, types: td.types, primaryType: td.primaryType, message: td.message });
+  }
+  return rpc(method, params ?? []);
+});
+await page.addInitScript(() => {
   const listeners = {};
   window.ethereum = {
     isMock: true,
     on: (e, f) => { (listeners[e] ??= []).push(f); },
     removeListener: (e, f) => { listeners[e] = (listeners[e] ?? []).filter((x) => x !== f); },
-    request: async ({ method, params }) => {
-      if (method === 'eth_requestAccounts' || method === 'eth_accounts') return [account];
-      if (method === 'eth_chainId') return chainHex;
-      if (method === 'wallet_switchEthereumChain' || method === 'wallet_addEthereumChain') return null;
-      const r = await fetch(rpcUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params: params ?? [] }) });
-      const j = await r.json();
-      if (j.error) throw Object.assign(new Error(j.error.message), { code: j.error.code, data: j.error.data });
-      return j.result;
-    },
+    request: ({ method, params }) => window.__walletRequest(method, params ?? []),
   };
-}, { account: ACCOUNT, rpcUrl: RPC, chainHex });
+});
 
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
@@ -92,6 +116,32 @@ await page.waitForFunction(() => /USDG/.test(document.querySelector('#use .balan
 console.log('connected:', (await page.locator('#use .balances').innerText()).trim());
 await page.screenshot({ path: `${OUT}/use-connected.png`, fullPage: false });
 
+if (ONLY === 'migrate') {
+  await page.getByRole('tab', { name: 'Lend' }).click();
+  await page.waitForFunction(() => /Your supply there/.test(document.querySelector('#use .pane:not(.hidden) .form:nth-child(3) .muted')?.textContent ?? ''), null, { timeout: 60_000 });
+  console.log('   before:', await tile('Your supply'), '|', (await page.locator('#use .pane:not(.hidden) .form:nth-child(3) .muted').innerText()).trim());
+  await page.screenshot({ path: `${OUT}/migrate-before.png` });
+  await page.waitForTimeout(RECORD ? 2500 : 0);
+  await act('Lend', 'Migrate to the Vigil market', null, null, 'Migrate');
+  // the page re-reads the old position until the RPC shows it moved (public RPCs lag a block behind the receipt)
+  await page.waitForFunction(() => /there: 0\.00 USDG/.test(document.querySelector('#use .pane:not(.hidden) .form:nth-child(3) .muted')?.textContent ?? ''), null, { timeout: 20_000 }).catch(() => {});
+  console.log('   after: ', await tile('Your supply'), '|', (await page.locator('#use .pane:not(.hidden) .form:nth-child(3) .muted').innerText()).trim());
+  await page.screenshot({ path: `${OUT}/migrate-after.png` });
+  const link = await page.locator('#use .tx-status a').getAttribute('href');
+  console.log('   tx:', link);
+  if (RECORD) {
+    await page.waitForTimeout(4000);
+    await page.goto(link, { waitUntil: 'load' });
+    await page.waitForTimeout(6000);
+    await page.screenshot({ path: `${OUT}/migrate-explorer.png`, fullPage: false });
+  }
+  if (errors.length) { console.log('page errors:', errors); process.exit(1); }
+  const video = RECORD ? await page.video()?.path() : null;
+  await context.close(); await browser.close();
+  if (video) console.log('video:', video);
+  process.exit(0);
+}
+
 await act('Lend', 'Supply', 'Supply', '10', 'Supply 10.00 USDG');
 console.log('   your supply:', await tile('Your supply'));
 await act('Borrow', 'Add collateral', 'Add collateral', '0.01');
@@ -126,4 +176,5 @@ console.log('ok  Borrow without collateral →', (await status()).replace(/\s+/g
 
 if (errors.length) { console.log('page errors:', errors); process.exit(1); }
 console.log(`done — screenshots in ${OUT}/`);
+await context.close();
 await browser.close();

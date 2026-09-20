@@ -7,7 +7,7 @@
   "deployedAt": "2026-09-19T22:52:23Z",
   "version": 4,
   "previous": "robinhood-testnet-46630-v3.json",
-  "notes": "v4: the collateral is Robinhood's own testnet TSLA stock token and the loan token is Paxos's testnet USDG \u2014 both real; Morpho Blue, the TSLA/USD feed and the IRM are deployed here as mocks because the testnet has no Chainlink feeds or Morpho. Surface: the TSLA calibration (sigma 0.0176).",
+  "notes": "v4: the collateral is Robinhood's own testnet TSLA stock token and the loan token is Paxos's testnet USDG — both real; Morpho Blue, the TSLA/USD feed and the IRM are deployed here as mocks because the testnet has no Chainlink feeds or Morpho. Surface: the TSLA calibration (sigma 0.0176).",
   "market": {
     "id": "0x165f9db8f5e1d9982a35dfaadb3f944cf747970c8f819f16f10105f5c7eb6e04",
     "loanToken": "USDG (Paxos, testnet)",
@@ -76,16 +76,36 @@
     },
     "USDG": {
       "address": "0x7E955252E15c84f5768B83c41a71F9eba181802F",
-      "issuer": "Paxos \u2014 Global Dollar (USDG) on Robinhood Chain testnet, 6 decimals, EIP-1967 proxy; 100 USDG per wallet per day from https://faucet.paxos.com/",
+      "issuer": "Paxos — Global Dollar (USDG) on Robinhood Chain testnet, 6 decimals, EIP-1967 proxy; 100 USDG per wallet per day from https://faucet.paxos.com/",
       "external": true
     },
     "StockToken": {
       "address": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
-      "issuer": "Robinhood \u2014 Tesla (TSLA) stock token on the Robinhood Chain testnet: BeaconProxy of the `Stock` implementation, registered in AccessControlsRegistry 0x1dF3cA0fD30ED5eeb09eB01938f4E9c5196E6Ca5; 5 TSLA per claim from https://faucet.testnet.chain.robinhood.com/",
+      "issuer": "Robinhood — Tesla (TSLA) stock token on the Robinhood Chain testnet: BeaconProxy of the `Stock` implementation, registered in AccessControlsRegistry 0x1dF3cA0fD30ED5eeb09eB01938f4E9c5196E6Ca5; 5 TSLA per claim from https://faucet.testnet.chain.robinhood.com/",
       "external": true
+    },
+    "LegacyOracle": {
+      "address": "0x8bcf082d62ef9a1a57119a1efc1c934a03a433b4",
+      "tx": "0x16cb805d2a82a5394a24361f785890751d9d1f609612606cc9d47b8f83763192",
+      "block": 122041427
+    },
+    "VigilMigrator": {
+      "address": "0x4149c1b22dd10ba6cdc04e248aec288642b67ad0",
+      "tx": "0x3f27e3361c6f0e11bef5e6748a1ab9170e21f1582496e58559bf9b68217b7cc8",
+      "block": 122041444
     }
   },
   "transactions": 24,
   "gasUsed": 26449381,
-  "firstBlock": 121837516
+  "firstBlock": 121837516,
+  "legacyMarket": {
+    "id": "0xe6461a55cd75fc051e361deae6b408ea02cf46a2382197b88b8378df32cd9e4a",
+    "lltv": "0.625e18",
+    "oracle": "LegacyOracle",
+    "collateralToken": "TSLA (Robinhood, testnet)",
+    "loanToken": "USDG (Paxos, testnet)",
+    "createTx": "0x272c2ce01e271ddc18ba2928645d41556f567c3ed1dbe18ab377d66f03fbfbec",
+    "supplyTx": "0x8cd72b6479d5178c5db7df875336a84e68f407a0d166e5e730725318b09d2876",
+    "notes": "Migration demo (20 Sep 2026): a plain-oracle TSLA/USDG market at the 62.5 % LLTV the stock-token markets on mainnet use today; 20 USDG supplied by the deployer, then moved into the Vigil market through VigilMigrator in one transaction."
+  }
 }

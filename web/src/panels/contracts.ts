@@ -24,6 +24,8 @@ const ROLE: Record<ContractName, string> = {
   UsdgFeed: 'Chainlink USDG/USD feed, 8 decimals — the quote leg of VigilOracle',
   MockFeed: `mock Chainlink ${SYMBOL}/USD feed, 8 decimals (the testnet has no Chainlink feeds)`,
   MockIRM: 'mock interest rate model',
+  VigilMigrator: 'moves a supply position from any USDG market into the Vigil market in one transaction (EIP-712 authorisation inside the call)',
+  LegacyOracle: `plain ${SYMBOL}/USD oracle of the 62.5 % demo market — what a market without Vigil looks like`,
 };
 const ISSUER: Partial<Record<ContractName, string>> = {
   USDG: 'issued by Paxos', StockToken: 'issued by Robinhood', Morpho: 'Morpho Labs', IRM: 'Morpho Labs', Feed: 'Chainlink', UsdgFeed: 'Chainlink',

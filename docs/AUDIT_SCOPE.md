@@ -29,6 +29,7 @@ derived from time, the feed and the token; off-chain actors can only make the sy
 | `VigilPreLiquidation` | 187 | session-aware soft unwind of members to a target LTV at a regime-dependent discount (Morpho PreLiquidation pattern) | `preLiquidate`, `registerMarket`, `transferGuardian` |
 | `VigilLossReporter` | 209 | `liquidateWithCover`: computes the shortfall at the oracle price, draws it from the backstop, repays on behalf, then runs Morpho's liquidation | `liquidateWithCover`, `onMorphoLiquidate` (Morpho callback), `registerMarket`, `transferGuardian` |
 | `interfaces/` | 105 | `IVigil` (types, events, errors), `IAggregatorV3`, `IStockToken` (ERC-8056 subset) | — |
+| `periphery/VigilMigrator` | 64 | moves a supply position between two markets of the same Morpho in one call; grants the withdrawal authorisation from the caller's EIP-712 signature; holds nothing between transactions | `migrate` |
 
 Deployment wiring is in `script/Deploy.s.sol` and `script/DeployLib.sol` (calibrated parameters); they are
 in scope for *what they set*, not as code that runs after deployment.

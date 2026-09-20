@@ -2,16 +2,17 @@
  *  is simulated first (so a revert surfaces as its custom error, not as a failed transaction), sent through the
  *  wallet, awaited, and followed by a fresh read of the account. Nothing here is required to *watch* Vigil —
  *  the rest of the page stays read-only. */
-import { formatUnits, type Address, type EIP1193Provider, type Hex, type WalletClient } from 'viem';
+import { formatUnits, isHex, parseSignature, type Address, type EIP1193Provider, type Hex, type WalletClient } from 'viem';
 import { el, setText } from '../ui/dom';
-import { ADDR, ASSET, CHAIN_ID, IS_TESTNET, MARKET_ID, NETWORK_NAME, SYMBOL, explorerTx } from '../deployment';
+import { ADDR, ASSET, CHAIN_ID, IS_TESTNET, LEGACY_MARKET_ID, MARKET_ID, NETWORK_NAME, SYMBOL, explorerTx } from '../deployment';
 import { client } from '../chain/client';
 import { erc20Abi } from '../abi/erc20';
 import { morphoAbi } from '../abi/morpho';
 import { vigilPremiumAbi } from '../abi/vigilPremium';
 import { vigilBackstopAbi } from '../abi/vigilBackstop';
+import { vigilMigratorAbi } from '../abi/vigilMigrator';
 import { readAccount, readMarketParams, readRequests, type AccountState, type MarketParams, type WithdrawRequest } from '../chain/account';
-import { collateralValue, ltvBps, maxBorrowOf, parseAmount } from '../chain/math';
+import { collateralValue, ltvBps, maxBorrowOf, parseAmount, suppliedOf } from '../chain/math';
 import { currentChainId, ensureChain, onWalletChange, provider, requestAccount, shortError, walletClient } from '../chain/wallet';
 import { fmtBps, fmtDuration, fmtUsd, shortAddr } from '../ui/format';
 import type { Snapshot } from '../chain/snapshot';
@@ -84,11 +85,19 @@ export function createUse(): Panel {
   const withdrawF = field('Withdraw', 'USDG', 6);
   const supplyBtn = el('button', { class: 'btn', type: 'button', text: 'Supply' });
   const withdrawBtn = el('button', { class: 'btn', type: 'button', text: 'Withdraw' });
+  // Migrate: leave any other USDG market on this Morpho for the Vigil market in one transaction (VigilMigrator)
+  const migrateId = el('input', { class: 'amount', type: 'text', placeholder: '0x… market id', spellcheck: false, 'aria-label': 'Market id to migrate from', value: LEGACY_MARKET_ID ?? '' });
+  const migrateInfo = el('p', { class: 'muted', text: 'Paste the id of a Morpho market you supply to; the whole position moves here in one transaction (you sign the authorisation, the contract withdraws and re-supplies for you).' });
+  const migrateBtn = el('button', { class: 'btn', type: 'button', text: 'Migrate to the Vigil market' });
+  const migrateForm = el('div', { class: 'form' },
+    el('label', { class: 'field' }, el('span', { class: 'field-label', text: 'Migrate from another market' }), el('span', { class: 'field-row' }, migrateId)),
+    migrateBtn, migrateInfo);
   panes.Lend.append(
     el('div', { class: 'use-grid' }, lendTile.root),
     el('div', { class: 'forms' },
       el('div', { class: 'form' }, supplyF.root, supplyBtn, el('p', { class: 'muted', text: 'Lends USDG to the Morpho market. Borrowers are priced at the session-aware oracle; members’ shortfalls are covered by the backstop.' })),
       el('div', { class: 'form' }, withdrawF.root, withdrawBtn, el('p', { class: 'muted', text: 'Withdraw any time while the market has liquidity.' })),
+      ADDR.VigilMigrator ? migrateForm : null,
     ),
   );
 
@@ -164,7 +173,7 @@ export function createUse(): Panel {
     status,
   );
 
-  const allButtons = [supplyBtn, withdrawBtn, addCollBtn, borrowBtn, repayBtn, remCollBtn, joinBtn, leaveBtn, topUpBtn, unusedBtn, depositBtn, requestBtn];
+  const allButtons = [supplyBtn, withdrawBtn, migrateBtn, addCollBtn, borrowBtn, repayBtn, remCollBtn, joinBtn, leaveBtn, topUpBtn, unusedBtn, depositBtn, requestBtn];
   const setEnabled = (on: boolean) => { for (const b of allButtons) b.disabled = !on; };
 
   // ── status line ──
@@ -182,6 +191,7 @@ export function createUse(): Panel {
       params ??= await readMarketParams(client);
       [acct, reqs] = await Promise.all([readAccount(client, address), readRequests(client, address)]);
       buildRequests();
+      void describeLegacy();
     } catch (e) {
       say(`Could not read the account: ${shortError(e)}`, 'err');
     }
@@ -272,6 +282,75 @@ export function createUse(): Panel {
     const all = v === a.supplied; // by shares, so the position closes exactly
     await run(async () => [{ label: `Withdraw ${usd(v)} USDG`, send: write(morpho('withdraw', [params, all ? 0n : v, all ? a.supplyShares : 0n, address, address])) }]);
     withdrawF.input.value = '';
+  });
+
+  // Migrate from another market: read that position, sign Morpho's EIP-712 authorisation if needed, then one call
+  type Legacy = { params: readonly [Address, Address, Address, Address, bigint]; shares: bigint; assets: bigint };
+  async function readLegacy(id: Hex): Promise<Legacy | null> {
+    if (!address) return null;
+    const [params, [shares], market] = await Promise.all([
+      client.readContract({ address: ADDR.Morpho, abi: morphoAbi, functionName: 'idToMarketParams', args: [id] }),
+      client.readContract({ address: ADDR.Morpho, abi: morphoAbi, functionName: 'position', args: [id, address] }),
+      client.readContract({ address: ADDR.Morpho, abi: morphoAbi, functionName: 'market', args: [id] }),
+    ]);
+    if (params[0] === '0x0000000000000000000000000000000000000000') return null;
+    return { params, shares, assets: suppliedOf(shares, market[0], market[1]) };
+  }
+  const MIGRATE_HINT = 'Paste the id of a Morpho market you supply to; the whole position moves here in one transaction (you sign the authorisation, the contract withdraws and re-supplies for you).';
+  async function describeLegacy() {
+    const id = migrateId.value.trim();
+    if (!address || !isHex(id) || id.length !== 66) { setText(migrateInfo, MIGRATE_HINT); return; }
+    try {
+      const l = await readLegacy(id as Hex);
+      if (!l) { setText(migrateInfo, 'No market with that id on this Morpho.'); return; }
+      const sameLoan = l.params[0].toLowerCase() === USDG.toLowerCase();
+      setText(migrateInfo, `${sameLoan ? '' : 'Different loan token — cannot migrate. '}Your supply there: ${usd(l.assets)} USDG · LLTV ${fmtBps(Number(l.params[4] / 10n ** 14n))} · oracle ${shortAddr(l.params[2])} (plain, no session awareness).`);
+    } catch (e) { setText(migrateInfo, shortError(e)); }
+  }
+  migrateId.addEventListener('input', () => void describeLegacy());
+  migrateBtn.addEventListener('click', async () => {
+    if (!acct || !params || !address || !ADDR.VigilMigrator) return;
+    const id = migrateId.value.trim();
+    if (!isHex(id) || id.length !== 66) { say('Enter a 32-byte market id.', 'err'); return; }
+    const l = await readLegacy(id as Hex);
+    if (!l) { say('No market with that id on this Morpho.', 'err'); return; }
+    if (l.params[0].toLowerCase() !== USDG.toLowerCase()) { say('That market lends a different token.', 'err'); return; }
+    if (l.shares === 0n) { say('You have no supply in that market.', 'err'); return; }
+    const migrator = ADDR.VigilMigrator;
+    const me = address;
+    const to = params;
+    const from = { loanToken: l.params[0], collateralToken: l.params[1], oracle: l.params[2], irm: l.params[3], lltv: l.params[4] };
+    await run(async () => [{
+      label: `Migrate ${usd(l.assets)} USDG from ${shortAddr(id)} into the Vigil market`,
+      send: async () => {
+        const authorized = await client.readContract({ address: ADDR.Morpho, abi: morphoAbi, functionName: 'isAuthorized', args: [me, migrator] });
+        let auth = { authorizer: me, authorized: migrator, isAuthorized: true, nonce: 0n, deadline: 0n };
+        let sig: { v: number; r: Hex; s: Hex } = { v: 27, r: `0x${'0'.repeat(64)}`, s: `0x${'0'.repeat(64)}` };
+        if (!authorized) {
+          const nonce = await client.readContract({ address: ADDR.Morpho, abi: morphoAbi, functionName: 'nonce', args: [me] });
+          auth = { authorizer: me, authorized: migrator, isAuthorized: true, nonce, deadline: BigInt(Math.floor(Date.now() / 1000) + 3600) };
+          say('Sign the Morpho authorisation in the wallet (a signature, no gas)…');
+          const signed = await wallet!.signTypedData({
+            account: me,
+            domain: { chainId: CHAIN_ID, verifyingContract: ADDR.Morpho }, // Morpho's domain has no name or version
+            types: { Authorization: [{ name: 'authorizer', type: 'address' }, { name: 'authorized', type: 'address' }, { name: 'isAuthorized', type: 'bool' }, { name: 'nonce', type: 'uint256' }, { name: 'deadline', type: 'uint256' }] },
+            primaryType: 'Authorization',
+            message: auth,
+          });
+          const p = parseSignature(signed);
+          sig = { v: Number(p.v ?? (p.yParity === 1 ? 28n : 27n)), r: p.r, s: p.s };
+          say('Authorisation signed — now confirm the migration transaction…');
+        }
+        return write({ address: migrator, abi: vigilMigratorAbi, functionName: 'migrate', args: [from, to, l.shares, auth, sig] })();
+      },
+    }]);
+    // public RPCs can lag a block behind the receipt: re-read the old position until it has moved
+    for (let i = 0; i < 5; i++) {
+      const now = await readLegacy(id as Hex).catch(() => null);
+      if (!now || now.shares !== l.shares) break;
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+    void describeLegacy();
   });
 
   // Borrow

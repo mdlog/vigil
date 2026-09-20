@@ -104,6 +104,28 @@ forge script script/E2E.s.sol --rpc-url robinhood_testnet --broadcast --slow --g
 
 The same script runs against an Anvil fork of the testnet (`anvil --fork-url robinhood_testnet --chain-id 46630 --block-time 2`) for free. `video/` records a run from the public dashboard and narrates it from the numbers it produced — see [`video/README.md`](../video/README.md). The demo video is the run in the table above, wrapped in static cards (problem, gap distribution, mainnet fork, backtest, links) whose numbers `video/verify.sh` pins to `calibrator/report_full.md` and the README.
 
+## Migration demo — leaving a plain-oracle market in one transaction (20 Sep 2026)
+
+On mainnet today the stock-token markets on Morpho Blue run at 62.5 % LLTV with plain oracles and sit at < 1 %
+utilisation, while the 86 % markets that exist are empty. The demo reproduces that starting point on the testnet
+and shows a supplier moving to the Vigil market with one signature and one transaction:
+
+| Step | Transaction |
+|---|---|
+| `LegacyOracle` (a `ControlOracle`: raw feed, no session awareness) | [`0x8bcf…33b4`](https://explorer.testnet.chain.robinhood.com/address/0x8bcf082d62ef9a1a57119a1efc1c934a03a433b4) · [deploy](https://explorer.testnet.chain.robinhood.com/tx/0x16cb805d2a82a5394a24361f785890751d9d1f609612606cc9d47b8f83763192) |
+| `VigilMigrator` | [`0x4149…7aD0`](https://explorer.testnet.chain.robinhood.com/address/0x4149c1b22dd10ba6cdc04e248aec288642b67ad0) · [deploy](https://explorer.testnet.chain.robinhood.com/tx/0x3f27e3361c6f0e11bef5e6748a1ab9170e21f1582496e58559bf9b68217b7cc8) |
+| legacy market TSLA/USDG, LLTV 62.5 %, id `0xe6461a55…cd9e4a` | [`createMarket`](https://explorer.testnet.chain.robinhood.com/tx/0x272c2ce01e271ddc18ba2928645d41556f567c3ed1dbe18ab377d66f03fbfbec) |
+| 20 USDG supplied to the legacy market by the deployer | [`supply`](https://explorer.testnet.chain.robinhood.com/tx/0x8cd72b6479d5178c5db7df875336a84e68f407a0d166e5e730725318b09d2876) |
+| **migration from the dashboard** — EIP-712 authorisation signed in the wallet, then `VigilMigrator.migrate`: `SetAuthorization` → `Withdraw` (legacy) → `Supply` (Vigil) → `Migrated`, 229 k gas | [`migrate`](https://explorer.testnet.chain.robinhood.com/tx/0xf2a4148181c355fb5668d198b30aacd54dd593e9ebf1c36ccefaf68746a5380c) |
+
+Result on-chain: legacy position 0, Vigil position ≈ 20 USDG (Morpho rounds each withdrawal down by 1 wei),
+`isAuthorized(deployer, migrator) = true`. `script/MigrationDemo.s.sol` reproduces the setup (`PHASE=setup`) and
+the migration from a key (`PHASE=migrate`); the dashboard's Lend tab has the same action for any wallet
+("Migrate from another market", prefilled with the legacy market id). Recorded with
+`npm run smoke -- --key-env PRIVATE_KEY --only migrate --record` (23 s; the same script rehearsed it on a fork first).
+The migrator is symmetric — the position was moved back and forth three times while recording
+([`0x60a5…a156`](https://explorer.testnet.chain.robinhood.com/tx/0x60a5d6e6408ac8ee0f7e32ec39f1e4d69eb3ab1844276a5dac40929c598a7156), [`0x749b…f849c`](https://explorer.testnet.chain.robinhood.com/tx/0x749bdfefdb8bdfb7004a45b036af154a02c4836a131e804209a8c8e416ef849c), [`0x932b…2ee69`](https://explorer.testnet.chain.robinhood.com/tx/0x932b2284a977bc78dc93b9c32951446fa61b8ab158bce817d2a7e006aa62ee69)).
+
 ## Dashboard
 
 `web/` is a static, read-only page (Vite + TypeScript + viem) that polls the testnet through Multicall3 every 15 s and draws the haircut curve from `VigilRiskEngine.closureHaircutBps` on-chain. It is deployed to GitHub Pages by `.github/workflows/pages.yml`.

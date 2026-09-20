@@ -14,6 +14,7 @@ const targets = [
   ['VigilOracle.sol/VigilOracle.json', 'vigilOracle'],
   ['VigilBackstop.sol/VigilBackstop.json', 'vigilBackstop'],
   ['VigilPremium.sol/VigilPremium.json', 'vigilPremium'],
+  ['VigilMigrator.sol/VigilMigrator.json', 'vigilMigrator'],
   ['Morpho.sol/Morpho.json', 'morpho'],
   ['MockFeed.sol/MockFeed.json', 'mockFeed'],
 ];
