@@ -1,0 +1,13 @@
+{
+  "name": "vigil-ops",
+  "private": true,
+  "type": "module",
+  "description": "Keeper for a Vigil deployment: status, poke, unwind, liquidate, attest. See README.md.",
+  "scripts": {
+    "keeper": "node --experimental-strip-types keeper.ts",
+    "test": "node --experimental-strip-types --test test/*.test.ts"
+  },
+  "dependencies": {
+    "viem": "^2.21.0"
+  }
+}

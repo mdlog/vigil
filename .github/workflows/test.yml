@@ -52,3 +52,22 @@ jobs:
       - run: pip install numpy pandas scipy matplotlib
       - run: python -m unittest -q test_calibration
         working-directory: calibrator
+
+  ops:
+    name: Keeper unit tests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ops/package-lock.json
+      - run: npm ci
+        working-directory: ops
+      - run: npm test
+        working-directory: ops

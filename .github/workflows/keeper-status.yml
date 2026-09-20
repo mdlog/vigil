@@ -1,0 +1,40 @@
+name: Keeper status
+
+# Read-only watch over the live deployment: `ops/keeper.ts status --strict` exits 1 when the feed is not usable,
+# the oracle reverts, the premium index has not been persisted for 24 h, a shortfall is not covered or a position
+# is liquidatable — i.e. whenever an operator has to act. Nothing is sent; there is no key in this job.
+# Point MANIFEST at deployments/robinhood-mainnet-4663.json once that file exists.
+
+on:
+  schedule:
+    - cron: '30 */6 * * *' # four times a day
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  status:
+    name: status --strict
+    runs-on: ubuntu-latest
+    env:
+      MANIFEST: deployments/robinhood-testnet-46630.json
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ops/package-lock.json
+      - name: Build the ABIs
+        run: forge build
+      - run: npm ci
+        working-directory: ops
+      - name: Status
+        working-directory: ops
+        run: |
+          set -o pipefail
+          npm run keeper -- status --strict --manifest "$MANIFEST" | tee -a "$GITHUB_STEP_SUMMARY"
