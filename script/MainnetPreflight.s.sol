@@ -33,7 +33,7 @@ interface IAccessControlsRegistry {
 ///
 ///   FOUNDRY_PROFILE=fork forge script script/MainnetPreflight.s.sol --rpc-url robinhood_mainnet -vv
 ///
-/// Env (all optional; defaults are the mainnet addresses verified on 19–20 Sep 2026, see README › On-chain verification):
+/// Env (all optional; defaults are the mainnet addresses verified on 19–20 Sep 2026, see docs/VERIFICATION.md › On-chain verification):
 ///   MORPHO, IRM, USDG, STOCK_TOKEN, FEED, USDG_FEED, SYMBOL, LLTV, CAP_BPS, COVERAGE_CAP, DEPLOYER,
 ///   MIN_ETH (wei the deployer must hold, default 0.005 ether), EXPECT_CHAIN_ID (default 4663).
 contract MainnetPreflight is Script {

@@ -27,7 +27,7 @@ Do not raise `COVERAGE_CAP` above 0 before G4, G6 and G7 are green.
 ## 1. Environment
 
 ```bash
-cp .env.mainnet.example .env.mainnet          # addresses verified on-chain 19–20 Sep 2026 (README › On-chain verification)
+cp .env.mainnet.example .env.mainnet          # addresses verified on-chain 19–20 Sep 2026 (docs/VERIFICATION.md)
 # fill PRIVATE_KEY — or leave it empty and use `--account <keystore>` from `cast wallet import` on every forge command
 set -a; . ./.env.mainnet; set +a
 ```

@@ -151,12 +151,12 @@ export const EVIDENCE = {
   gapAug2024: "14.18%", // calibrator/report_full.md — worst closures table, 2024-08-05
   gapJan2025: "12.49%", // calibrator/report_full.md — 2025-01-27
   lltv: "0.86", // calibrator/report_full.md — LLTV 0.86
-  forkCoverUsdg: "31.20", // README.md — Mainnet fork table, weekendGapCycleOnRealMorpho
+  forkCoverUsdg: "31.20", // docs/VERIFICATION.md — Mainnet fork table, weekendGapCycleOnRealMorpho
   plainBadDebtClosures: "3", // calibrator/report_full.md — Across tickers: NVDA 2 + AAPL 0 + TSLA 1
   premiumBp: "122.2", // calibrator/report_full.md — premium collected, max-LTV borrower, NVDA
   tailGpdBp: "299.2", // calibrator/report_full.md — expected bad debt beyond the buffer, GPD tail
   tailTfitBp: "17.8", // calibrator/report_full.md — t-fit
-  calendarClosed: "50", // README.md — V15: 50 closures + 11 early closes match nyse.com
+  calendarClosed: "50", // docs/VERIFICATION.md — V15: 50 closures + 11 early closes match nyse.com
   calendarHalf: "11",
 };
 

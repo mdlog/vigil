@@ -122,5 +122,5 @@ USDG amounts < 2¹²⁸).
 
 ## Contacts and disclosure
 
-Report findings privately to the address in `README.md › Contributors`; the deployment on mainnet will not
+Report findings privately to the maintainer named in `README.md › License`; the deployment on mainnet will not
 accept a coverage cap above 0 until the findings of this review are addressed.

@@ -19,7 +19,7 @@ import {VigilLossReporter} from "../src/VigilLossReporter.sol";
 ///     forge script script/Handover.s.sol --rpc-url robinhood_mainnet            # dry run: prints the plan
 ///     … --broadcast                                                              # executes the seven calls
 ///
-/// Roles (README › Roles and trust assumptions):
+/// Roles (docs/DESIGN.md › Roles and trust assumptions):
 ///   guardian      — VigilCalendar.addHoliday/addHalfDay (≥ 7 days ahead), VigilSessionOracle.registerAsset/setRoles,
 ///                   VigilBackstop.setCoverageCap/setLossReporter, VigilPremium/PreLiquidation/LossReporter market
 ///                   registration; can never remove a holiday, change a price or pause the oracle.
