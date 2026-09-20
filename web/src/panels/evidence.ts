@@ -14,7 +14,7 @@ export function createEvidence(): Panel {
     el('tbody', {}, ...ROWS.map((r) => el('tr', {}, ...r.map((c, i) => el('td', { class: i === 2 ? 'zero' : i === 0 ? 'mono wrap' : undefined, text: c }))))),
   );
   const root = el('section', { class: 'panel reveal', id: 'evidence' },
-    el('p', { class: 'kicker', text: '04 · Why this exists' }),
+    el('p', { class: 'kicker', text: '05 · Why this exists' }),
     el('p', { class: 'lede', text: 'In four years of NVDA data, both gaps that would have created bad debt in an 86 % LLTV market happened at Monday open — after a weekend in which the price feed did not move and no liquidation could execute. Utilization-based interest charged nothing for either.' }),
     el('div', { class: 'table-wrap' }, table),
     el('p', { class: 'muted' }, 'Two identical Morpho Blue markets replayed on Anvil with the production contracts and the real dates — ',

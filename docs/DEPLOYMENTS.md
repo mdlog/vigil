@@ -115,3 +115,27 @@ npm test               # pure-function tests
 npm run test:network   # parity of the on-chain haircut curve with test/unit/CurveFixture.t.sol
 npm run abi            # regenerate src/abi from ../out after `forge build`
 ```
+
+### Use it — the transaction panel
+
+Panel 04 turns the page into the end-user interface without changing what the rest of it is: a wallet is only
+needed there, the other panels stay read-only. It talks to an injected EIP-1193 wallet (MetaMask, Rabby, …), offers
+to switch or add the deployment's chain, and shows the wallet's balances, Morpho position, membership and backstop
+holdings, read in one multicall (`web/src/chain/account.ts`).
+
+| Tab | Actions | Contract calls |
+|---|---|---|
+| Lend | supply, withdraw (max = by shares, closes the position exactly) | `Morpho.supply` / `withdraw` |
+| Borrow | add collateral, borrow (live "LTV after" preview, borrowable amount at the oracle price), repay (max = by shares), withdraw collateral | `Morpho.supplyCollateral` / `borrow` / `repay` / `withdrawCollateral` |
+| Member | join (authorise `VigilPreLiquidation` on the position), top up the premium escrow, withdraw what exceeds the 7-day reserve, leave | `Morpho.setAuthorization`, `VigilPremium.topUp` / `withdrawUnused` |
+| Backstop | deposit, request a withdrawal (in USDG; converted to the vault's 12-decimal shares), claim when the cooldown has passed during `MARKET` | `VigilBackstop.deposit` / `requestWithdraw` / `claimWithdraw` |
+
+ERC-20 approvals are exact-amount and only sent when the allowance is short. Every write is `simulateContract`ed
+first, so a revert shows as its custom error (`ReserveBreach()`, `NotReady()`, …) before anything is signed; the
+status line links each confirmed transaction to the explorer, and the account is re-read after every action.
+
+`npm run smoke` (`web/scripts/wallet-smoke.mjs`) proves the flow end to end in headless Chromium against an Anvil
+fork with a mock wallet that forwards to the fork (`anvil --auto-impersonate` signs for any address): supply 10
+USDG → 0.01 TSLA collateral → borrow 1 USDG → join → top up 0.5 → deposit 5 into the backstop → request 2 →
+repay all → withdraw collateral → withdraw supply → withdraw the unused escrow, then a rejected borrow. Last run
+20 Sep 2026 against the v4 deployment: 13 actions confirmed, screenshots in `web/test/out/`.

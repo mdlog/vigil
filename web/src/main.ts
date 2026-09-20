@@ -8,6 +8,7 @@ import { createHeader } from './panels/header';
 import { createSession } from './panels/session';
 import { createPrice } from './panels/price';
 import { createEconomy } from './panels/economy';
+import { createUse } from './panels/use';
 import { createEvidence } from './panels/evidence';
 import { createContracts } from './panels/contracts';
 import { createFooter } from './panels/footer';
@@ -16,7 +17,7 @@ import type { Meta, Panel } from './panels/types';
 const app = document.querySelector<HTMLDivElement>('#app')!;
 const banner = el('div', { class: 'banner hidden', role: 'status' });
 const price = createPrice();
-const panels: Panel[] = [createHeader(), createSession(), price, createEconomy(), createEvidence(), createContracts(), createFooter()];
+const panels: Panel[] = [createHeader(), createSession(), price, createEconomy(), createUse(), createEvidence(), createContracts(), createFooter()];
 mount(app, banner, ...panels.map((p) => p.root));
 
 let snapshot: Snapshot | null = null;

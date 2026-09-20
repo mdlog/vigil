@@ -79,7 +79,7 @@ export function createContracts(): Panel {
     );
   });
   const root = el('section', { class: 'panel reveal', id: 'contracts' },
-    el('p', { class: 'kicker', text: '05 · Architecture and contracts' }),
+    el('p', { class: 'kicker', text: '06 · Architecture and contracts' }),
     el('p', { class: 'muted', text: 'Vigil is not a lending protocol: it attaches to an unmodified Morpho Blue market through the oracle, and adds a premium, a first-loss tranche, a soft unwind and a covered liquidation around it.' }),
     el('div', { class: 'chart-wrap' }, flow()),
     el('div', { class: 'table-wrap' },

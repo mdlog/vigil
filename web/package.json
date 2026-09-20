@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:network": "VIGIL_NETWORK_TESTS=1 vitest run test/parity.network.test.ts",
     "abi": "node scripts/gen-abi.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "smoke": "node scripts/wallet-smoke.mjs"
   },
   "dependencies": {
     "viem": "^2.21.0"

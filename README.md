@@ -16,7 +16,7 @@ exchange session on-chain and, without modifying Morpho, ramps a haircut into th
 closure, charges members a premium for holding leverage through it, unwinds them softly while the market is
 still open, and repays any remaining shortfall from a first-loss backstop inside the liquidation itself.
 
-**Live:** [dashboard](https://mdlog.github.io/vigil/) (Robinhood Chain testnet) · **Docs:** [design](docs/DESIGN.md) ·
+**Live:** [dashboard](https://mdlog.github.io/vigil/) (Robinhood Chain testnet; read-only panels plus wallet actions) · **Docs:** [design](docs/DESIGN.md) ·
 [deployments](docs/DEPLOYMENTS.md) · [evidence and verification](docs/VERIFICATION.md) · [mainnet runbook](docs/MAINNET.md) ·
 [audit scope](docs/AUDIT_SCOPE.md)
 
@@ -83,6 +83,11 @@ Dependencies are pinned in `foundry.lock`: Morpho Blue v1.0.0, OpenZeppelin 4.9.
 cd web && npm ci && npm run dev        # dashboard at http://127.0.0.1:5173/vigil/ (VIGIL_MANIFEST picks the deployment)
 cd ops && npm ci && npm run keeper -- status                 # keeper: status | poke | unwind | liquidate | attest
 ```
+
+The dashboard's **Use it** panel is the end-user interface: connect an injected wallet and lend, borrow, join as a
+member (authorise the soft unwind, fund the premium escrow) or back the vault (deposit, request and claim a
+withdrawal) against the same contracts the page reads. Every action is simulated before it is sent. `npm run smoke`
+drives the whole flow in a headless browser against an Anvil fork (see [docs/DEPLOYMENTS.md](docs/DEPLOYMENTS.md#dashboard)).
 
 ## Deployment
 
