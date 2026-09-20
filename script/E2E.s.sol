@@ -122,14 +122,14 @@ contract E2E is Script {
         payable(erin.addr).transfer(GAS_MONEY);
         payable(carol.addr).transfer(GAS_MONEY);
         payable(dave.addr).transfer(GAS_MONEY);
-        usdg.transfer(alice.addr, SUPPLY);
-        usdg.transfer(bob.addr, ESCROW_FUND);
-        usdg.transfer(erin.addr, ESCROW_FUND);
-        usdg.transfer(carol.addr, LP_DEPOSIT);
-        usdg.transfer(dave.addr, LIQUIDATOR_USDG);
+        require(usdg.transfer(alice.addr, SUPPLY), "usdg transfer");
+        require(usdg.transfer(bob.addr, ESCROW_FUND), "usdg transfer");
+        require(usdg.transfer(erin.addr, ESCROW_FUND), "usdg transfer");
+        require(usdg.transfer(carol.addr, LP_DEPOSIT), "usdg transfer");
+        require(usdg.transfer(dave.addr, LIQUIDATOR_USDG), "usdg transfer");
         if (realStock) {
-            stock.transfer(bob.addr, COLLATERAL);
-            stock.transfer(erin.addr, COLLATERAL);
+            require(stock.transfer(bob.addr, COLLATERAL), "stock transfer");
+            require(stock.transfer(erin.addr, COLLATERAL), "stock transfer");
         }
         vm.stopBroadcast();
 

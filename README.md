@@ -134,7 +134,7 @@ npm run abi            # regenerate src/abi from ../out after `forge build`
 git clone --recurse-submodules https://github.com/mdlog/vigil.git
 cd vigil
 forge build
-forge test                                   # 79 tests: unit, historical replay scenarios, invariants, fuzz regressions (+3 fork tests, see below)
+forge test                                   # 80 tests: unit, historical replay scenarios, invariants, fuzz regressions (+3 fork tests, see below)
 forge coverage --report summary --no-match-coverage "(test|script|mocks)"   # ≈93 % line coverage on src/
 ```
 
@@ -179,6 +179,13 @@ forge script script/Deploy.s.sol --rpc-url robinhood_testnet --broadcast
 
 `PRIVATE_KEY` may be left empty in favour of `--private-key`, `--account` or `--sender`.
 
+**Mainnet.** [`docs/MAINNET.md`](docs/MAINNET.md) is the runbook: go/no-go checklist, `script/MainnetPreflight.s.sol`
+(27 read-only checks against the live chain — 26 pass today, the deployer holds no mainnet ETH), a simulated
+deployment (24 tx, ≈ 25.3 M gas), a shadow launch with `COVERAGE_CAP=0`, `script/manifest.mjs` and
+`script/verify.mjs` to record and source-verify the deployment from the broadcast, `script/Handover.s.sol` to move
+every role to a multisig, the keeper in [`ops/`](ops/README.md), and the incident playbook. Nothing has been sent to
+mainnet; [`docs/AUDIT_SCOPE.md`](docs/AUDIT_SCOPE.md) is the review that should come first.
+
 ### Live deployment — Robinhood Chain testnet (chain ID 46630)
 
 Deployment **v4**, 2026-09-19 22:52 UTC, from `0x90351bB1E85a17D5f70c62C0cC076D39D897076D` (also `guardian`, `calibrator` and `keeperSigner`), 24 transactions, 26.45 M gas. **Both tokens are real.** Robinhood issues stock tokens on its testnet (TSLA, AMD, AMZN, NFLX, PLTR — BeaconProxies of the verified `Stock` implementation, registered in its `AccessControlsRegistry` and handed out by the testnet faucet) and Paxos issues Global Dollar there, so the market is Robinhood's TSLA against Paxos's USDG with the TSLA calibration (σ 0.0176). What the testnet does not have is Chainlink feeds and Morpho (checked on-chain and in the [Robinhood](https://docs.robinhood.com/chain/protocol-contracts) and [Chainlink](https://docs.chain.link/data-feeds/tokenized-equity-feeds/robinhood) docs, 19–20 Sep 2026), so the TSLA/USD feed and the IRM are mocks and Morpho Blue v1.0.0 is deployed from source. The testnet `Stock` implementation lacks `oraclePaused()` (the mainnet token has it); `VigilSessionOracle` probes it at registration and skips rule 1 for such tokens — rule 2, the `effectiveAt` window, still applies. Full manifest with transaction hashes: [`deployments/robinhood-testnet-46630.json`](deployments/robinhood-testnet-46630.json); Foundry broadcast log under `broadcast/Deploy.s.sol/46630/`. Earlier deployments are kept for provenance: [v1](deployments/robinhood-testnet-46630-v1.json) (before the tightening-ramp fix), [v2](deployments/robinhood-testnet-46630-v2.json) (all mocks) and [v3](deployments/robinhood-testnet-46630-v3.json) (mock NVDA, real USDG).
@@ -209,8 +216,9 @@ Quick liveness check (the oracle answers with the session-aware price in USDG pe
 
 ```bash
 RPC=https://rpc.testnet.chain.robinhood.com
-cast call 0xf2beee25008e34d5bf6cf948f3f1fd1baea1a865 "price()(uint256)" --rpc-url $RPC
-cast call 0xa86a812b837bab077828312221a85b3505bf1ca7 "regimeOf(address)(uint8,uint8,uint64,uint64)" 0xf20f6806d85e65e4375ced9903fb72055307bc29 --rpc-url $RPC
+cast call 0x79DA01DB22808E3A7397B788F171a7647b1bEf8f "price()(uint256)" --rpc-url $RPC
+cast call 0xa1cF321C8b4B49C83CB679d821C8315213B0f0B2 "regimeOf(address)(uint8,uint8,uint64,uint64)" 0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E --rpc-url $RPC
+cd ops && npm ci && npm run keeper -- status         # the same, plus every borrower's state (ops/README.md)
 ```
 
 ### End-to-end run on the live testnet
@@ -298,7 +306,9 @@ Calibrated from four years of NVDA close-to-open returns (Sep 2022 – Sep 2026)
 
 `CORP_ACTION` can only originate from the stock token itself (`oraclePaused()` / `effectiveAt()`). Without any
 keeper, the calendar and feed freshness alone produce the full daily cycle; off-chain services (calibrator,
-keeper, unwind bot) can only tighten and are not required for safety.
+keeper, unwind bot) can only tighten and are not required for safety. The deployer holds every role until
+`script/Handover.s.sol` moves them (it refuses an EOA guardian or calibrator unless `ALLOW_EOA=true`); the
+keeper itself is `ops/keeper.ts` — `status`, `poke`, `unwind`, `liquidate`, `attest`, dry-run by default.
 
 ## Design notes
 
@@ -374,9 +384,14 @@ src/
   mocks/                     MockStockToken, MockFeed, MockUSDG, MockIRM, ControlOracle, MockSequencerFeed
 script/
   Deploy.s.sol               per-contract deployment from an EOA (env-driven, mocks as fallback)
+  MainnetPreflight.s.sol     read-only go/no-go checks against Robinhood Chain mainnet
+  Handover.s.sol             moves every privileged role to its final holders
+  manifest.mjs, verify.mjs   deployment manifest and Blockscout verification from the broadcast record
   Demo.s.sol                 two-market historical replay
   E2E.s.sol                  end-to-end cycle against a live deployment (testnet or Anvil fork)
   DeployLib.sol              shared calibrated parameters and the demo deployer
+ops/                         keeper: status, poke, unwind, liquidate, attest (ops/README.md)
+docs/                        MAINNET.md runbook, AUDIT_SCOPE.md
 web/
   src/                       static dashboard (see Dashboard); src/abi is generated from out/
 video/                       records an E2E run from the dashboard and narrates it (video/README.md)
@@ -390,7 +405,7 @@ test/
 
 ## Status and roadmap
 
-- [x] MVP: 8 contracts, 79 tests, historical replay demo
+- [x] MVP: 8 contracts, 80 tests, historical replay demo
 - [x] On-chain verification of every mainnet dependency (table above)
 - [x] Live on Robinhood Chain testnet 46630 (addresses above)
 - [x] Live dashboard on GitHub Pages
@@ -398,15 +413,18 @@ test/
 - [x] Mainnet-fork suite against the real dependencies; mainnet deployment simulated
 - [x] Full calibrator: POT/GPD weekend tail fit, backtest of the on-chain model, gap-distribution charts
 - [x] Re-verify the embedded NYSE calendar against nyse.com (V15) — 2024–2028 pinned by test
-- [ ] Off-chain services: session keeper (attestations) and unwind bot
+- [x] Off-chain services: keeper with `status`, `poke`, `unwind`, `liquidate`, `attest` (`ops/`), exercised on a fork; read-only status watch in CI
+- [x] Mainnet preparation: pre-flight script, handover script, manifest + verification from the broadcast, dashboard per manifest, runbook and audit scope
+- [ ] External audit (`docs/AUDIT_SCOPE.md`)
+- [ ] Mainnet shadow launch (`docs/MAINNET.md` — blocked on mainnet ETH, role holders and the audit)
 
 Out of scope for the MVP: cross-asset portfolio margin, senior/junior tranches, governance, non-ERC-8056
 assets, and coverage for borrowers who do not pay the premium (Morpho has no hook to enforce it).
 
 ## Contributing
 
-Issues and pull requests are welcome. Please run `forge fmt`, `forge build --sizes` and `forge test` before
-opening a PR — CI enforces all three.
+Issues and pull requests are welcome. Please run `forge fmt`, `forge build --sizes`, `forge test` and `forge lint`
+before opening a PR — CI enforces the first three.
 
 ## Contributors
 

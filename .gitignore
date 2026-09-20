@@ -7,8 +7,11 @@
 /broadcast/*/31337/
 /broadcast/**/dry-run/
 
-# Docs
-/docs/
+# Docs: runbooks are tracked; planning scratch and `forge doc` output are not
+/docs/superpowers/
+/docs/book/
+/docs/src/
+/docs/book.toml
 
 # Dotenv file
 .env
