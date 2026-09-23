@@ -6,8 +6,9 @@ this file was added in (`git log -1 -- docs/AUDIT_SCOPE.md`). No external audit 
 ## What Vigil is, in one paragraph
 
 A set of eight immutable contracts that sit next to an unmodified Morpho Blue market whose collateral is a
-tokenized equity (Robinhood's ERC-8056 stock tokens) and whose loan token is USDG. The equity trades 24/5 with
-a price feed that freezes at the close, while the chain and the market run 24/7. Vigil derives the exchange
+tokenized equity (Robinhood's ERC-8056 stock tokens) and whose loan token is USDG. The underlying equity trades
+24/5 and its Chainlink feed stops for the weekend (Friday evening → Sunday 20:00 ET), while the token, the chain
+and the market run 24/7. Vigil derives the exchange
 session from `block.timestamp`, applies a haircut to the oracle price that ramps up during a closure and
 releases at the open, charges a premium for holding a leveraged position through a closure, unwinds
 consenting members softly before the open, and keeps a first-loss backstop that repays a shortfall inside
@@ -47,7 +48,7 @@ Robinhood's stock tokens are dependencies, assumed correct as deployed.
 | `guardian` (per contract; one address after handover) | add holidays / half days ≥ 7 days ahead; register assets and markets; wire the loss reporter and pre-liquidation once; set the coverage cap and the poke bounty; transfer its role | remove a holiday; change a price, a haircut or a table; pause; block or force a liquidation; touch escrowed or deposited funds |
 | `calibrator` | move the surface within `MAX_DELTA_BPS` = 200 bps per update and the on-chain bounds; schedule events; set premium tables | exceed the bounds; act on the oracle directly |
 | `keeperSigner` | sign attestations that tighten: an earlier `closeAt`, a later `nextOpen` (≤ `MAX_CLOSED_HORIZON` = 5 days), regime ≤ `CLOSED`, life ≤ `MAX_ATTESTATION_AGE` = 30 min, strictly increasing `issuedAt` | loosen; attest `CORP_ACTION`; make the oracle revert |
-| the stock token (ERC-8056) | put the asset into `CORP_ACTION` through `oraclePaused()` / the `effectiveAt` window | — |
+| the stock token (ERC-8056, plus Robinhood's `oraclePaused()`) | put the asset into `CORP_ACTION` through `oraclePaused()` / the `effectiveAt` window | — |
 | the feed | make the oracle fail closed by going stale | move the price outside Chainlink's own bounds |
 | anyone | `poke`, `preLiquidate` a member reported unwindable, `liquidateWithCover` an unhealthy position, deposit into the backstop, top up an escrow | — |
 
@@ -100,7 +101,8 @@ tests plus the 3 fork tests; line coverage ≈ 93 % on `src/`.
    target LTV, at `currentDiscountBps`. Can it be used to grief a member (repeated partial unwinds), or to
    extract more than the discount?
 8. **ERC-8056.** `uiMultiplier` / `newUIMultiplier` / `effectiveAt` drive the corporate-action window and the
-   price conversion; `oraclePaused()` is probed at registration (the testnet token lacks it). A token whose
+   price conversion; `oraclePaused()`, Robinhood's own extension rather than part of ERC-8056, is probed at
+   registration (the testnet token lacks it). A token whose
    multiplier changes without announcing a window — what does the oracle return?
 9. **Token restrictions.** USDG can freeze addresses; the stock token's registry can block them. Which
    frozen/blocked party can brick which function (e.g. a blocked loss reporter, a frozen backstop)?

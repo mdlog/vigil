@@ -13,11 +13,15 @@ produced them. The [README](../README.md) is the summary; this is the long form.
 > Morpho's core.
 
 Tokenized equities on Robinhood Chain (ERC-8056 stock tokens such as NVDA, AAPL, TSLA) can be used as
-collateral in Morpho Blue markets. Every week, for roughly 65 hours (Friday 16:00 → Monday 09:30 ET), there
-is no liquid regular session and the on-chain price feed does not move. Any Monday-open gap therefore hits a
-position at the *Friday* price, with no intermediate price at which a partial liquidation could have saved
-it. Lenders are effectively writing a free option, and a utilization-based interest rate model has no way
-to see it.
+collateral in Morpho Blue markets. Every week there is no regular session for 65.5 hours (Friday 16:00 →
+Monday 09:30 ET), and for 48–52 of them the on-chain price feed does not move at all: Robinhood's Chainlink
+feeds stop on Friday evening and resume when the overnight session opens at Sunday 20:00 ET (NVDA 52.1 h,
+TSLA 52.2 h, SPCX 48.9 h on 18–21 Sep 2026). The weekend's move therefore hits a position at the *Friday*
+price, with no price in between at which a partial liquidation could have saved it, and first shows up in
+thin overnight prints. Lenders are effectively writing a free option, and a utilization-based interest rate
+model has no way to see it. Vigil prices the whole regular-session closure (L = 65.5 h) and keeps the haircut
+until the regular open: overnight prints are thin, and Chainlink's 24/5 guide warns that jumps of 10–20 % or
+more at session boundaries are possible in low liquidity.
 
 ## How it works
 
@@ -103,8 +107,8 @@ keeper itself is `ops/keeper.ts` — `status`, `poke`, `unwind`, `liquidate`, `a
 ## Design notes
 
 - **Stale feed inside `MARKET`** is measured from `max(updatedAt, lastOpen)` with a per-asset
-  `marketStaleSeconds` (6 h): a feed frozen since Friday gets a fresh grace period at Monday 09:30, and a
-  quiet stock (AAPL was observed silent for 4.7 h *inside* a session) is not tightened by mistake.
+  `marketStaleSeconds` (6 h): a feed that last printed before the open (on Friday, or quietly on Sunday night)
+  gets a fresh grace period at 09:30, and a quiet stock (AAPL was observed silent for 4.7 h *inside* a session) is not tightened by mistake.
 - **Keeper attestations** take effect from their `closeAt`; a halt that brings the close forward must name a
   regime ≥ `EXTENDED`; the ramp starts at `issuedAt`. Found by the invariant fuzzer: without this, a halt
   scheduled 4 seconds ahead became a full step in the haircut.

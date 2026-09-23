@@ -99,7 +99,7 @@ export function Home() {
           <div className="container">
             <div className="section-intro split">
               <div><SectionLabel>The gap is the risk</SectionLabel><h2>When the market pauses,<br /><span>the loan doesn’t.</span></h2></div>
-              <p>Tokenized stocks trade 24/5. Their price feeds freeze at the close. But the chain and the lending market run 24/7. A Monday opening gap can arrive with no intermediate price at which liquidation could have executed.</p>
+              <p>Stock tokens trade 24/7. Their price feeds don’t: they go silent from Friday evening until Sunday 20:00 ET, while the chain and the lending market keep running. The weekend’s move then lands at once, with no price in between at which a liquidation could have executed.</p>
             </div>
             <div className="problem-grid">
               <article className="problem-card accent">

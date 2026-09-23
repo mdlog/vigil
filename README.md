@@ -9,12 +9,14 @@
 
 Session-aware collateral risk layer for tokenized equity on Morpho Blue, built for Robinhood Chain.
 
-Tokenized stocks trade 24/5 and their price feeds freeze at the close; the chain and the lending market run
-24/7. Every weekend a Morpho market holding NVDA or TSLA as collateral is exposed to Monday's opening gap at
-Friday's price, with no intermediate price at which a liquidation could have executed. Vigil derives the
-exchange session on-chain and, without modifying Morpho, ramps a haircut into the oracle price before each
-closure, charges members a premium for holding leverage through it, unwinds them softly while the market is
-still open, and repays any remaining shortfall from a first-loss backstop inside the liquidation itself.
+Robinhood's stock tokens trade 24/7 on-chain, but the stock, the mint/burn window and the Chainlink feeds run
+24/5. Every weekend the feeds go silent from Friday evening until the overnight session opens at Sunday 20:00 ET
+(48.9–52.2 hours on 18–21 Sep 2026), so a Morpho market holding NVDA or TSLA as collateral carries the whole
+move at Friday's price, with no price in between at which a liquidation could have executed, and reprices on
+thin overnight prints. Vigil derives the exchange session on-chain and, without modifying Morpho, ramps a
+haircut into the oracle price before each closure, charges members a premium for holding leverage through it,
+unwinds them softly while the market is still open, and repays any remaining shortfall from a first-loss
+backstop inside the liquidation itself.
 
 **Live:** [site](https://mdlog.github.io/vigil/) · [dashboard](https://mdlog.github.io/vigil/dashboard/) (Robinhood Chain testnet; live tabs plus a wallet tab) · **Docs:** [design](docs/DESIGN.md) ·
 [deployments](docs/DEPLOYMENTS.md) · [evidence and verification](docs/VERIFICATION.md) · [mainnet runbook](docs/MAINNET.md) ·
@@ -62,10 +64,22 @@ the call from an EIP-712 signature).
 | Historical replay, NVDA/USDG at 86 % LLTV ([`script/Demo.s.sol`](script/Demo.s.sol)) | 5 Aug 2024 (−14.2 %) and 27 Jan 2025 (−12.5 %): control market socialised 40.59 and 30.95 USDG of bad debt per position, the Vigil market 0; a −12 % gap on a max-LTV member: 70.12 USDG shortfall paid by the backstop, suppliers untouched |
 | Live testnet, Robinhood's TSLA token and Paxos USDG ([run](docs/DEPLOYMENTS.md#end-to-end-run-on-the-live-testnet)) | 37 transactions through supply, borrow, membership, backstop, keeper attestation, soft unwind, a replayed −10.81 % gap and a covered liquidation ([cover tx](https://explorer.testnet.chain.robinhood.com/tx/0x98e9fbf1e2382f6b7f0cca84105d465f5c41eff401f767eb70b1decf3502939a)) |
 | Migration from a plain-oracle 62.5 % market ([demo](docs/DEPLOYMENTS.md#migration-demo--leaving-a-plain-oracle-market-in-one-transaction-20-sep-2026)) | a supplier's 20 USDG moved into the Vigil market from the dashboard with one signature and one transaction ([migrate tx](https://explorer.testnet.chain.robinhood.com/tx/0xf2a4148181c355fb5668d198b30aacd54dd593e9ebf1c36ccefaf68746a5380c)) |
-| Mainnet fork, real Morpho, AdaptiveCurveIRM, USDG, NVDA token and Chainlink feeds ([`test/fork`](test/fork/MainnetFork.t.sol)) | frozen Friday feed usable with the weekend haircut; real ERC-8056 flags; full weekend cycle with a 31.20 USDG shortfall covered on the real Morpho |
+| Mainnet fork, real Morpho, AdaptiveCurveIRM, USDG, NVDA token and Chainlink feeds ([`test/fork`](test/fork/MainnetFork.t.sol)) | frozen Friday feed usable with the weekend haircut; the real token's ERC-8056 and `oraclePaused` flags; full weekend cycle with a 31.20 USDG shortfall covered on the real Morpho |
 | Calibration, four years of NVDA/AAPL/TSLA gaps ([`calibrator/`](calibrator/README.md)) | no closure in the sample produced bad debt on a Vigil market; the plain market took three |
 
 Details and the on-chain facts behind every parameter: [docs/VERIFICATION.md](docs/VERIFICATION.md).
+
+## Prior art
+
+Vigil is assembled from mechanisms that already exist, and names them. On-chain NYSE calendars and
+corporate-action gates are live on Robinhood Chain (NetNet's Morpho oracles already revert on `oraclePaused()`);
+Chainlink Data Streams report the current session; Kamino (live) and Fluid (published code) bound stock prices
+around the last close outside market hours; Morpho PreLiquidation runs on several stock markets; and Aftermarket
+(Base, 7 Sep 2026) pairs a Morpho oracle whose haircut grows with each hour the market stays shut with a session
+interest premium. None of them combines what Vigil ships on an unmodified Morpho market: a haircut priced on the
+closure being entered and ramped in before it, an opt-in premium that funds a first-loss USDG tranche, a covered
+liquidation that repays the shortfall inside the liquidation transaction, and a calendar-timed soft unwind while
+the market is still open.
 
 ## Getting started
 
