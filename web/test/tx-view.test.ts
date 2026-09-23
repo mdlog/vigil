@@ -82,6 +82,10 @@ describe('borrow preview', () => {
     expect(borrowPreview('', a, P, LLTV)).toBe(BORROW_HINT);
     expect(borrowPreview('1', a, null, LLTV)).toBe(BORROW_HINT);
   });
+  it('reads a decimal comma the way the amount field does', () => {
+    expect(borrowPreview('0,5', a, P, LLTV)).toBe(borrowPreview('0.5', a, P, LLTV));
+    expect(borrowPreview('0,5', a, P, LLTV)).toBe('LTV after: 0.96 % of 86.00 %.');
+  });
   it('shows the LTV after, the unwind warning and the LLTV refusal', () => {
     expect(borrowPreview('1', a, P, LLTV)).toBe('LTV after: 1.92 % of 86.00 %.');
     expect(borrowPreview('44', a, P, LLTV)).toBe('LTV after: 84.77 % of 86.00 % — above the 76 % unwind target: a member would be unwound before the next close.');

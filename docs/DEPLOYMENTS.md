@@ -159,5 +159,9 @@ status line links each confirmed transaction to the explorer, and the account is
 `npm run smoke` (`web/scripts/wallet-smoke.mjs`) proves the flow end to end in headless Chromium against an Anvil
 fork with a mock wallet that forwards to the fork (`anvil --auto-impersonate` signs for any address): supply 10
 USDG → 0.01 TSLA collateral → borrow 1 USDG → join → top up 0.5 → deposit 5 into the backstop → request 2 →
-repay all → withdraw collateral → withdraw supply → withdraw the unused escrow, then a rejected borrow. Last run
-23 Sep 2026 on the React dashboard against the v4 deployment: 12 actions confirmed (11 transactions and the rejected borrow), screenshots in `web/test/out/`.
+(fork clock +1 h, so the repay has to cover accrued interest) repay all → withdraw collateral → withdraw supply →
+withdraw the unused escrow, then a borrow without collateral that the page refuses with its message. `--only migrate`
+moves a supply position out of the 62.5 % demo market through `VigilMigrator`. Last run 23 Sep 2026 on the React
+dashboard against the v4 deployment: all 11 actions confirmed (approvals included where the allowance was short), the
+over-borrow refused, and the migration confirmed (20.00 USDG out of the demo market, 20.00 USDG into the Vigil
+market); screenshots in `web/test/out/`.

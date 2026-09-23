@@ -51,13 +51,24 @@ export function sessionView(s: Snapshot, nowMs: number): SessionView {
 
 export interface OracleView { price: string; formula: string; feed: string; haircut: string; note: string; reverting: boolean }
 
+/** Why price() reverted, out of viem's report: the custom error ("Error: VigilStale()"), the require() string after
+ *  "…with the following reason:", or the selector after "…with the following signature:"; else the report's first line. */
+export function revertReason(message: string | null): string {
+  if (!message) return 'the oracle refuses to price (corporate action or unexpectedly stale feed)';
+  const lines = message.split('\n').map((l) => l.trim());
+  const custom = lines.find((l) => l.startsWith('Error: '));
+  if (custom) return `price() reverts: ${custom.slice('Error: '.length)}`;
+  const at = lines.findIndex((l) => /with the following (reason|signature):$/.test(l));
+  const next = at >= 0 ? lines[at + 1] : undefined;
+  return next ? `price() reverts: ${next}` : lines[0] ?? message;
+}
+
 export function oracleView(s: Snapshot): OracleView {
   const feed = fmtUsd(feedToUsd(s.feedAnswer));
   const haircut = fmtBps(s.haircutNowBps);
   const note = `engine H(L) ${fmtBps(s.engineHaircutBps)} for L = ${hours(s.closureLen)}, capped at ${fmtBps(s.capBps)} for the market${s.eventActive ? ' · scheduled event active' : ''}`;
   if (s.price === null) {
-    const reason = s.priceError?.split('\n')[0] ?? 'the oracle refuses to price (corporate action or unexpectedly stale feed)';
-    return { price: 'reverting', formula: reason, feed, haircut, note, reverting: true };
+    return { price: 'reverting', formula: revertReason(s.priceError), feed, haircut, note, reverting: true };
   }
   const formula = s.unhaircutPrice !== null ? `= ${fmtUsd(priceToUsdg(s.unhaircutPrice))} × (1 − ${haircut})` : '';
   return { price: fmtUsd(priceToUsdg(s.price)), formula, feed, haircut, note, reverting: false };

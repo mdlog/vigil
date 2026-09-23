@@ -69,6 +69,20 @@ describe('closing a position exactly', () => {
     await run(await repay(h.ctx, acct({ debt: 44_590_000n, borrowShares: 44_590_000_000_000n }), 44_590_000n));
     expect(h.sims[0]).toEqual({ address: ADDR.Morpho, functionName: 'repay', args: [PARAMS, 0n, 44_590_000_000_000n, ME, '0x'] });
   });
+  it('repaying everything approves headroom for interest accrued since the market was last touched', async () => {
+    // the page reads Morpho's stored totals; repaying by shares pulls the debt *with* the interest accrued since then
+    const h = harness({ allowance: 44_590_000n }); // exactly the stale debt — what the old page approved, and what failed
+    const steps = await repay(h.ctx, acct({ debt: 44_590_000n, borrowShares: 44_590_000_000_000n }), 44_590_000n);
+    expect(steps.map((s) => s.label)).toEqual(['Approve USDG for Morpho', 'Repay 44.59 USDG']);
+    await run(steps);
+    expect(h.sims[0]).toEqual({ address: USDG, functionName: 'approve', args: [ADDR.Morpho, 45_035_901n] });
+  });
+  it('a partial repay approves exactly what it repays', async () => {
+    const h = harness({ allowance: 0n });
+    await run(await repay(h.ctx, acct({ debt: 44_590_000n, borrowShares: 44_590_000_000_000n }), 10_000_000n));
+    expect(h.sims[0]).toEqual({ address: USDG, functionName: 'approve', args: [ADDR.Morpho, 10_000_000n] });
+    expect(h.sims[1]!.args).toEqual([PARAMS, 10_000_000n, 0n, ME, '0x']);
+  });
   it('requests all shares for the whole deposit, previewWithdraw otherwise', async () => {
     const a = acct({ vgAssets: 10_000_000n, vgShares: 10_000_000_000_000n });
     const all = harness();
@@ -117,6 +131,25 @@ describe('migration', () => {
     expect(migratePrecheck(l)).toBeNull();
     expect(isMarketId(MARKET_ID)).toBe(true);
     expect(isMarketId('0x1234')).toBe(false);
+  });
+});
+
+describe('amounts typed with a decimal comma', () => {
+  it('reads a lone comma as the decimal point, the way Indonesian and most European keyboards type it', () => {
+    expect(validateAmount('0,5', 6, null, 'USDG')).toEqual({ ok: true, value: 500_000n });
+    expect(validateAmount('0,05', 6, null, 'USDG')).toEqual({ ok: true, value: 50_000n });
+    expect(validateAmount('1,5', 6, null, 'USDG')).toEqual({ ok: true, value: 1_500_000n });
+    expect(validateAmount('0,500', 6, null, 'USDG')).toEqual({ ok: true, value: 500_000n });
+    expect(validateAmount('1.000,5', 6, null, 'USDG')).toEqual({ ok: true, value: 1_000_500_000n });
+  });
+  it('keeps a comma as a thousands separator only in three-digit groups', () => {
+    expect(validateAmount('1,000', 6, null, 'USDG')).toEqual({ ok: true, value: 1_000_000_000n });
+    expect(validateAmount('12,345.5', 6, null, 'USDG')).toEqual({ ok: true, value: 12_345_500_000n });
+  });
+  it('refuses a number that cannot be read one way only', () => {
+    const bad = { ok: false, error: 'Enter a positive USDG amount with at most 6 decimals.' };
+    expect(validateAmount('1,2,3', 6, null, 'USDG')).toEqual(bad);
+    expect(validateAmount('1,000,5', 6, null, 'USDG')).toEqual(bad);
   });
 });
 

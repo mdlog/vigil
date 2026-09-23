@@ -11,7 +11,7 @@ import { vigilMigratorAbi } from '../abi/vigilMigrator';
 import type { AccountState, MarketParams } from '../chain/account';
 import { parseAmount, suppliedOf } from '../chain/math';
 import { shortAddr } from '../ui/format';
-import { stk, usd } from './units';
+import { normalizeDecimal, stk, usd } from './units';
 
 export const USDG = (ADDR.USDG ?? ADDR.MockUSDG) as Address;
 const NONE = '0x' as Hex;
@@ -66,11 +66,15 @@ export const addCollateral = async (ctx: TxContext, v: bigint): Promise<Step[]> 
 export const borrow = async (ctx: TxContext, v: bigint): Promise<Step[]> => [
   { label: `Borrow ${usd(v)} USDG`, send: writeStep(ctx, morpho('borrow', [ctx.params, v, 0n, ctx.account, ctx.account])) },
 ];
-/** Repaying the whole debt goes by shares, so no dust is left. */
+/** Room for the interest Morpho accrues before it pulls a whole-debt repay: the page's debt comes from the market's
+ *  stored totals (as of its last touch), while repaying by shares pays the debt *after* accrual — 1 % covers weeks. */
+export const withInterestHeadroom = (debt: bigint) => debt + debt / 100n + 1n;
+
+/** Repaying the whole debt goes by shares, so no dust is left; its approval carries the interest headroom. */
 export const repay = async (ctx: TxContext, a: AccountState, v: bigint): Promise<Step[]> => {
   const all = v === a.debt;
   return [
-    ...(await approveSteps(ctx, USDG, ADDR.Morpho, v, 'USDG for Morpho')),
+    ...(await approveSteps(ctx, USDG, ADDR.Morpho, all ? withInterestHeadroom(v) : v, 'USDG for Morpho')),
     { label: `Repay ${usd(v)} USDG`, send: writeStep(ctx, morpho('repay', [ctx.params, all ? 0n : v, all ? a.borrowShares : 0n, ctx.account, NONE])) },
   ];
 };
@@ -183,7 +187,8 @@ export type Parsed = { ok: true; value: bigint } | { ok: false; error: string };
 
 /** The panel's input rule: a positive amount with at most `decimals` fraction digits, not above `limit`. */
 export function validateAmount(input: string, decimals: number, limit: bigint | null, what: string): Parsed {
-  const v = parseAmount(input, decimals);
+  const plain = normalizeDecimal(input);
+  const v = plain === null ? null : parseAmount(plain, decimals);
   if (v === null) return { ok: false, error: `Enter a positive ${what} amount with at most ${decimals} decimals.` };
   if (limit !== null && v > limit) return { ok: false, error: `That is more than the ${formatUnits(limit, decimals)} ${what} available.` };
   return { ok: true, value: v };

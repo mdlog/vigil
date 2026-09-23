@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { ContractFunctionExecutionError, ContractFunctionRevertedError, encodeErrorResult, parseAbi, type Abi, type Hex } from 'viem';
+import { vigilOracleAbi } from '../src/abi/vigilOracle';
 import { economyView, marketView, oracleView, riskParams, sessionView } from '../src/view/panels';
 import { T0, snap } from './fixtures';
 
@@ -35,12 +37,24 @@ describe('oracleView', () => {
     });
     expect(oracleView(snap({ eventActive: true })).note).toMatch(/ · scheduled event active$/);
   });
-  it('shows "reverting" and the first line of the reason when price() reverts', () => {
-    const v = oracleView(snap({ price: null, priceError: 'The contract function "price" reverted.\nError: FeedStale()' }));
-    expect([v.price, v.formula, v.reverting]).toEqual(['reverting', 'The contract function "price" reverted.', true]);
+  it('shows "reverting" and why when price() reverts', () => {
+    const v = oracleView(snap({ price: null, priceError: viemRevert(encodeErrorResult({ abi: vigilOracleAbi, errorName: 'VigilStale' })) }));
+    expect([v.price, v.formula, v.reverting]).toEqual(['reverting', 'price() reverts: VigilStale()', true]);
     expect(oracleView(snap({ price: null, priceError: null })).formula).toBe('the oracle refuses to price (corporate action or unexpectedly stale feed)');
   });
+  it('shows a require() string and an undecodable selector too', () => {
+    const plain = parseAbi(['function price() view returns (uint256)']);
+    const reason = encodeErrorResult({ abi: parseAbi(['error Error(string)']), errorName: 'Error', args: ['feed paused'] });
+    expect(oracleView(snap({ price: null, priceError: viemRevert(reason, plain) })).formula).toBe('price() reverts: feed paused');
+    expect(oracleView(snap({ price: null, priceError: viemRevert('0xdeadbeef') })).formula).toBe('price() reverts: 0xdeadbeef');
+  });
 });
+
+/** The message viem puts on a reverted multicall entry — made by viem's own error classes, never typed by hand. */
+function viemRevert(data: Hex, abi: Abi = vigilOracleAbi): string {
+  const cause = new ContractFunctionRevertedError({ abi, data, functionName: 'price' });
+  return new ContractFunctionExecutionError(cause, { abi, functionName: 'price', contractAddress: '0x79DA01DB22808E3A7397B788F171a7647b1bEf8f' }).message;
+}
 
 describe('economyView', () => {
   it('prices the premium index, this closure and the backstop', () => {

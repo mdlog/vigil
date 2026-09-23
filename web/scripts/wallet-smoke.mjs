@@ -160,6 +160,11 @@ console.log('   backstop deposit:', await tile('Your backstop deposit'));
 console.log('   requests:', (await page.locator('#use tbody').innerText()).replace(/\s+/g, ' '));
 await page.screenshot({ path: `${OUT}/use-backstop.png` });
 // unwind everything: repay all, withdraw the collateral, the supply and the unused escrow — each with "max"
+if (!KEY_ENV) {
+  // let interest accrue first: the page reads Morpho's stored totals, so "Repay max" must pay more than the debt it shows
+  await rpc('evm_increaseTime', [3600]);
+  await rpc('evm_mine', []);
+}
 await act('Borrow', 'Repay', 'Repay', 'max');
 await act('Borrow', 'Withdraw collateral', 'Withdraw collateral', 'max');
 console.log('   after unwind — collateral:', await tile('Collateral'), '| debt:', await tile('Debt'));

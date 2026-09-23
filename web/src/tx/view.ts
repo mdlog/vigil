@@ -6,7 +6,7 @@ import type { Snapshot } from '../chain/snapshot';
 import { collateralValue, ltvBps, maxBorrowOf, parseAmount } from '../chain/math';
 import { fmtBps, fmtDuration, fmtUsd, shortAddr } from '../ui/format';
 import type { Legacy } from './actions';
-import { DEFAULT_LLTV, lltvBpsOf, stk, usd } from './units';
+import { DEFAULT_LLTV, lltvBpsOf, normalizeDecimal, stk, usd } from './units';
 
 export interface TileView { value: string; note: string; warn?: boolean }
 const EMPTY: TileView = { value: '—', note: '' };
@@ -87,7 +87,8 @@ export function borrowTiles(a: AccountState | null, s: Pick<Snapshot, 'price' | 
 export const BORROW_HINT = 'Borrowing power is computed at the oracle price — the haircut in force reduces it during a closure.';
 
 export function borrowPreview(input: string, a: AccountState | null, price: bigint | null, lltv: bigint | null): string {
-  const v = parseAmount(input, 6);
+  const plain = normalizeDecimal(input);
+  const v = plain === null ? null : parseAmount(plain, 6);
   if (!a || lltv === null || price === null || v === null) return BORROW_HINT;
   const after = ltvBps(a.collateral, price, a.debt + v);
   const lb = lltvBpsOf(lltv);
