@@ -4,8 +4,8 @@
 // join, back the vault and unwind all of it — no real key, no real funds.
 //
 //   anvil --fork-url https://rpc.testnet.chain.robinhood.com --chain-id 46630 --port 8549 --auto-impersonate &
-//   npm run dev &                                         # http://127.0.0.1:5173/vigil/
-//   node scripts/wallet-smoke.mjs [--account 0x…] [--rpc http://127.0.0.1:8549] [--page http://127.0.0.1:5173/vigil/]
+//   npm run dev &                                         # http://127.0.0.1:5173/vigil/dashboard/
+//   node scripts/wallet-smoke.mjs [--account 0x…] [--rpc http://127.0.0.1:8549] [--page http://127.0.0.1:5173/vigil/dashboard/]
 //
 // Uses the Playwright install of ../video (pinned 1.61.1, Chromium already on disk) so the dashboard keeps no
 // browser dependency of its own.
@@ -18,7 +18,7 @@ const { chromium } = require('playwright');
 const args = process.argv.slice(2);
 const flag = (n, d) => { const i = args.indexOf(`--${n}`); return i >= 0 ? args[i + 1] : d; };
 const RPC = flag('rpc', 'http://127.0.0.1:8549');
-const PAGE = flag('page', 'http://127.0.0.1:5173/vigil/');
+const PAGE = flag('page', 'http://127.0.0.1:5173/vigil/dashboard/');
 const ACCOUNT = flag('account', '0x90351bB1E85a17D5f70c62C0cC076D39D897076D'); // the testnet deployer: holds USDG and TSLA on the fork
 const OUT = flag('out', 'test/out');
 const KEY_ENV = flag('key-env'); // e.g. --key-env PRIVATE_KEY: sign locally instead of relying on anvil's impersonation
@@ -80,7 +80,7 @@ await page.addInitScript(() => {
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.log('  [console]', m.text().slice(0, 300)); });
-await page.goto(`${PAGE}?rpc=${encodeURIComponent(RPC)}&poll=2000`, { waitUntil: 'load' });
+await page.goto(`${PAGE}?rpc=${encodeURIComponent(RPC)}&poll=2000#use-it`, { waitUntil: 'load' });
 const use = page.locator('#use');
 await use.scrollIntoViewIfNeeded();
 

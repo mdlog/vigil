@@ -77,3 +77,53 @@
   .contract-row { min-width: 640px; }
   .curve-box text { font-size: 11px; }
 }
+
+/* ── "Use it" tab: the Manus design had none; built from the same tokens and panel language ── */
+.use-panel { margin-top: 42px; }
+.use-lede { max-width: 640px; margin: 12px 0 0; color: #69756d; font-size: 13px; line-height: 1.6; }
+.wallet-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-top: 24px; padding: 14px 16px; background: #f1f3eb; border: 1px solid #dfe3db; }
+.use-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 38px; padding: 0 16px; background: var(--ink); color: var(--paper); border: 1px solid var(--ink); font: 600 11px/1 var(--mono); cursor: pointer; }
+.use-btn:hover:not(:disabled) { background: #1c2c2f; }
+.use-btn.primary { background: var(--amber); border-color: var(--amber); color: var(--ink); }
+.use-btn.primary:hover:not(:disabled) { background: var(--amber-bright); }
+.use-btn.ghost { background: transparent; color: var(--ink); border-color: #cbd2c8; }
+.use-btn.ghost:hover:not(:disabled) { background: #f3f5ef; }
+.use-btn:disabled { opacity: .45; cursor: not-allowed; }
+.wallet-badge { display: inline-flex; align-items: center; gap: 7px; padding: 8px 10px; border: 1px solid #cbd2c8; background: #fbfbf6; font: 500 10px/1 var(--mono); }
+.wallet-badge i { width: 6px; height: 6px; border-radius: 50%; background: #63bda8; }
+.wallet-badge.off i { background: var(--amber); }
+.balances { color: #5e6c62; font: 500 10px/1.4 var(--mono); }
+.faucets { margin: 12px 0 0; color: #87918a; font: 500 10px/1.4 var(--mono); }
+.faucets a { color: #7d5b1d; }
+.faucets a:hover { color: var(--ink); }
+.use-tabs { display: flex; gap: 4px; margin-top: 26px; border-bottom: 1px solid #d9ded6; overflow-x: auto; }
+.use-tabs button { margin-bottom: -1px; padding: 12px 16px; background: transparent; border: 0; border-bottom: 2px solid transparent; color: #7e8980; font: 500 11px/1 var(--mono); cursor: pointer; }
+.use-tabs button:hover { color: var(--ink); }
+.use-tabs button.active { color: var(--ink); border-bottom-color: var(--amber); }
+.pane { padding-top: 22px; }
+.pane.hidden { display: none; }
+.use-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.tile { padding: 16px 18px; background: #f1f3eb; border: 1px solid #dfe3db; }
+.tile .kicker { color: #87918a; font: 500 9px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+.tile .big { margin-top: 14px; color: var(--ink); font: 500 24px/1 var(--display); letter-spacing: -.05em; }
+.tile .big.warn { color: #b05d43; }
+.tile .muted { margin-top: 9px; }
+.muted { color: #7e8980; font: 500 10px/1.5 var(--mono); }
+.forms { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: 12px; }
+.form { display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; background: #fbfbf6; border: 1px solid #dfe3db; }
+.field { display: flex; flex-direction: column; gap: 8px; }
+.field-label { color: #5e6c62; font: 500 10px/1 var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+.field-row { display: flex; align-items: center; border: 1px solid #cbd2c8; background: #fff; }
+.field-row:focus-within { border-color: var(--amber); }
+.field-row input { flex: 1; min-width: 0; padding: 10px 12px; border: 0; background: transparent; color: var(--ink); font: 500 14px/1 var(--mono); outline: none; }
+.unit { padding: 0 10px; color: #87918a; font: 500 10px/1 var(--mono); }
+.max-btn { align-self: stretch; padding: 0 12px; background: transparent; border: 0; border-left: 1px solid #dfe3db; color: #7d5b1d; font: 600 10px/1 var(--mono); cursor: pointer; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.tx-status { margin-top: 18px; padding: 12px 14px; border: 1px solid #dfe3db; background: #f1f3eb; color: #3f4c44; font: 500 11px/1.5 var(--mono); overflow-wrap: anywhere; }
+.tx-status.ok { border-color: #b7dccd; background: #e3f3ec; color: #245f50; }
+.tx-status.err { border-color: #efc2b4; background: #fbe9e3; color: #8b3f29; }
+.tx-status a { color: inherit; text-decoration: underline; }
+.requests { margin-top: 16px; overflow-x: auto; }
+.requests table { width: 100%; font: 500 10px/1.4 var(--mono); }
+.requests th { padding: 10px 8px; border-bottom: 1px solid #dfe3db; color: #9da59b; font-size: 9px; letter-spacing: .08em; text-align: left; }
+.requests td { padding: 10px 8px; border-bottom: 1px solid #e8ebe4; color: #3f4c44; }

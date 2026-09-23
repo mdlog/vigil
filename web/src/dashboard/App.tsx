@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { hashOf, tabFromHash, type Tab } from '../nav';
 import { useNow } from '../hooks/useNow';
 import { useSnapshot } from '../hooks/useSnapshot';
+import { useWallet } from '../hooks/useWallet';
 import { syncStatus } from '../view/status';
 import { Banner } from './Banner';
 import { Footer } from './Footer';
@@ -11,11 +12,13 @@ import { Topbar } from './Topbar';
 import { Contracts } from './tabs/Contracts';
 import { MarketRisk } from './tabs/MarketRisk';
 import { Overview } from './tabs/Overview';
+import { UseIt } from './tabs/UseIt';
 
 export function App() {
   const [tab, setTab] = useState<Tab>(() => tabFromHash(location.hash));
   const [menuOpen, setMenuOpen] = useState(false);
   const live = useSnapshot();
+  const wallet = useWallet(); // at the root, so switching tabs never drops the connection
   const nowMs = useNow(1000);
   const status = syncStatus(live.snapshot !== null, live.lastOkMs, live.error, nowMs);
 
@@ -46,7 +49,7 @@ export function App() {
           {tab === 'overview' && <Overview live={live} nowMs={nowMs} />}
           {tab === 'market-risk' && <MarketRisk live={live} nowMs={nowMs} />}
           {tab === 'contracts' && <Contracts />}
-          {tab === 'use-it' && <section className="panel use-panel" id="use"><p className="panel-note">The wallet tab lands in the next commit.</p></section>}
+          {tab === 'use-it' && <UseIt wallet={wallet} snapshot={live.snapshot} nowMs={nowMs} />}
           <Footer />
         </main>
       </div>
