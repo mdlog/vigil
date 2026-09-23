@@ -140,6 +140,8 @@ export const ORDER: string[] = [...OPENING.map((b) => b.id), ...BEATS.map((b) =>
 
 const fmt = (n: number, d = 2) => n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
 const pct = (bps: number) => (bps / 100).toFixed(bps % 100 === 0 ? 0 : 1);
+/** "Saturday" / "Sunday" — the weekday of the take in New York, so the opening line stays true on either day. */
+const weekdayEt = (iso: string) => new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", weekday: "long" }).format(new Date(iso));
 
 /**
  * Numbers spoken outside the take. Each one is pinned to the file it comes from by
@@ -176,7 +178,7 @@ export function narration(id: string, t: Take): string {
     case "post-03-end":
       return `The calendar is a verified on-chain table. Everything is open source.`;
     case "00-title":
-      return `Vigil prices the risk that a stock market is closed. This is the public dashboard reading Robinhood Chain testnet, on a Saturday: the exchange regime is closed, the ${t.symbol} feed is frozen at ${fmt(t.feedBefore)}, and Vigil's oracle already reports ${fmt(t.priceBefore)}. On the right, a Foundry script starts a real end-to-end run. It funds five throwaway actors first — gas, Paxos USDG and Robinhood's ${t.symbol} token.`;
+      return `Vigil prices the risk that a stock market is closed. This is the public dashboard reading Robinhood Chain testnet, on a ${weekdayEt(t.recordedAt)}: the exchange regime is closed, the ${t.symbol} feed is frozen at ${fmt(t.feedBefore)}, and Vigil's oracle already reports ${fmt(t.priceBefore)}. On the right, a Foundry script starts a real end-to-end run. It funds five throwaway actors first — gas, Paxos USDG and Robinhood's ${t.symbol} token.`;
     case "01-supply-borrow":
       return `Alice supplies ${fmt(t.supplyUsdg, 0)} USDG to the ${t.symbol} market. Bob and Erin each post ${fmt(t.collateralNvda, 2)} ${t.symbol} and borrow ${fmt(t.debtUsdg, 2)} USDG — ${pct(t.ltv0Bps)} percent loan-to-value against a price that already carries the weekend haircut. Watch the market line: borrowed and supplied move as the transactions confirm.`;
     case "02-member-backstop":

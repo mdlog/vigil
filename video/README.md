@@ -18,7 +18,7 @@ result, the backtest chart and the links after it (`OPENING` / `CLOSING` in
 ## A take, start to finish (≈10 min)
 
     node --experimental-strip-types video/record.ts --probe   # page live? terminal docked? cards render?
-    node --experimental-strip-types video/record.ts           # runs forge --broadcast on testnet, records out/raw/take.webm (+ out/cards/*.png)
+    node --experimental-strip-types video/record.ts           # runs forge --broadcast on testnet (FOUNDRY_PROFILE=fork: the stock token needs Cancun), records out/raw/take.webm (+ out/cards/*.png)
     node --experimental-strip-types video/select.ts           # → out/take.json from out/e2e.log + broadcast receipts
     video/.venv/bin/python video/tts.py                       # → out/audio/*.mp3 + words; picks the rate from the projected cut length
     video/.venv/bin/python video/captions.py                  # → cut.json, captions.ass, captions.srt
@@ -31,7 +31,7 @@ re-run captions → build. `tts.py` measures the whole cut (take footage floors 
 card beats) and re-renders at +6 % before asking for the cut list.
 
 Rehearsal without spending anything: `anvil --fork-url robinhood_testnet --chain-id 46630 --port 8546`,
-`cd web && npx vite --port 5179`, then `record.ts --fork` (the page reads the fork through `?rpc=`).
+`cd web && npx vite --port 5179`, then `record.ts --fork` (the dashboard at `/vigil/dashboard/` reads the fork through `?rpc=`).
 
 ## Honesty rules
 

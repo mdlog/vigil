@@ -23,7 +23,7 @@ const REPO = path.join(VIDEO_DIR, "..");
 const RAW = path.join(OUT_DIR, "raw");
 const EXPLORER = process.env.VIGIL_VIDEO_EXPLORER ?? "https://explorer.testnet.chain.robinhood.com";
 const RPC = process.env.VIGIL_VIDEO_RPC ?? (FORK ? "http://127.0.0.1:8546" : "robinhood_testnet");
-const URL_ = process.env.VIGIL_VIDEO_URL ?? (FORK ? "http://127.0.0.1:5179/vigil/?poll=3000&rpc=http://127.0.0.1:8546" : "https://mdlog.github.io/vigil/?poll=4000");
+const URL_ = process.env.VIGIL_VIDEO_URL ?? (FORK ? "http://127.0.0.1:5179/vigil/dashboard/?poll=3000&rpc=http://127.0.0.1:8546#overview" : "https://mdlog.github.io/vigil/dashboard/?poll=4000#overview");
 const TITLE_MS = 5000;
 const TAIL_MS = 8000;
 const EXPLORER_MS = 7000;
@@ -50,7 +50,7 @@ async function dockTerminal(page: Page) {
   await page.evaluate(
     async ({ html, w }) => {
       const st = document.createElement("style");
-      st.textContent = `#app{max-width:1150px;margin:0 0 0 16px} body{padding-right:${w}px}`;
+      st.textContent = `body{padding-right:${w}px} .dashboard-content{padding-inline:28px}`;
       document.head.appendChild(st);
       const f = document.createElement("iframe");
       f.id = "__term";
@@ -117,9 +117,11 @@ async function shootCards(browser: Browser): Promise<string[]> {
 }
 
 async function view(page: Page, v: View) {
+  // hero: the session and oracle panels at the top; economy: the stats with the market panel under them;
+  // price: the oracle panel, whose price is what falls at the gap
   await page.evaluate((v) => {
     if (v === "hero") window.scrollTo({ top: 0, behavior: "smooth" });
-    else document.querySelector(v === "economy" ? "#economy" : "#price")?.scrollIntoView({ behavior: "smooth", block: v === "economy" ? "center" : "start" });
+    else document.querySelector(v === "economy" ? "#economy" : "#oracle")?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, v);
 }
 
@@ -167,7 +169,10 @@ function runForge(onLine: (l: string) => Promise<void>): Promise<number> {
   return new Promise((resolve, reject) => {
     const ptyLog = path.join(OUT_DIR, "forge.pty.log");
     fs.writeFileSync(ptyLog, "");
-    const child = spawn("script", ["-qfc", FORGE_CMD, ptyLog], { cwd: REPO, env: process.env, stdio: ["ignore", "ignore", "ignore"] });
+    // Robinhood's stock token is compiled for Cancun: forge must simulate with the `fork` profile (evm_version cancun)
+    // or `symbol()` on it fails with NotActivated before anything is sent.
+    const env = { ...process.env, FOUNDRY_PROFILE: process.env.FOUNDRY_PROFILE ?? "fork" };
+    const child = spawn("script", ["-qfc", FORGE_CMD, ptyLog], { cwd: REPO, env, stdio: ["ignore", "ignore", "ignore"] });
     let offset = 0;
     let buf = "";
     let chain = Promise.resolve();
