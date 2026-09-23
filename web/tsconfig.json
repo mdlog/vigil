@@ -8,9 +8,10 @@
     "noUncheckedIndexedAccess": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "jsx": "react-jsx",
     "skipLibCheck": true,
     "types": ["vite/client"],
     "paths": { "@manifest": ["../deployments/robinhood-testnet-46630.json"] }
   },
-  "include": ["src", "test", "vite.config.ts"]
+  "include": ["src", "test", "vite.config.ts", "vitest.config.ts"]
 }
