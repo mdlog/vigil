@@ -16,7 +16,7 @@ exchange session on-chain and, without modifying Morpho, ramps a haircut into th
 closure, charges members a premium for holding leverage through it, unwinds them softly while the market is
 still open, and repays any remaining shortfall from a first-loss backstop inside the liquidation itself.
 
-**Live:** [dashboard](https://mdlog.github.io/vigil/) (Robinhood Chain testnet; read-only panels plus wallet actions) · **Docs:** [design](docs/DESIGN.md) ·
+**Live:** [site](https://mdlog.github.io/vigil/) · [dashboard](https://mdlog.github.io/vigil/dashboard/) (Robinhood Chain testnet; live tabs plus a wallet tab) · **Docs:** [design](docs/DESIGN.md) ·
 [deployments](docs/DEPLOYMENTS.md) · [evidence and verification](docs/VERIFICATION.md) · [mainnet runbook](docs/MAINNET.md) ·
 [audit scope](docs/AUDIT_SCOPE.md)
 
@@ -83,11 +83,11 @@ Dependencies are pinned in `foundry.lock`: Morpho Blue v1.0.0, OpenZeppelin 4.9.
 `evm_version = "paris"`; the `fork` profile runs the EVM at Cancun for chains whose contracts use `PUSH0`.
 
 ```bash
-cd web && npm ci && npm run dev        # dashboard at http://127.0.0.1:5173/vigil/ (VIGIL_MANIFEST picks the deployment)
+cd web && npm ci && npm run dev        # landing at http://127.0.0.1:5173/vigil/, dashboard at …/vigil/dashboard/ (VIGIL_MANIFEST picks the deployment)
 cd ops && npm ci && npm run keeper -- status                 # keeper: status | poke | unwind | liquidate | attest
 ```
 
-The dashboard's **Use it** panel is the end-user interface: connect an injected wallet and lend, borrow, join as a
+The dashboard's **Use it** tab is the end-user interface: connect an injected wallet and lend, borrow, join as a
 member (authorise the soft unwind, fund the premium escrow) or back the vault (deposit, request and claim a
 withdrawal) against the same contracts the page reads. Every action is simulated before it is sent. `npm run smoke`
 drives the whole flow in a headless browser against an Anvil fork (see [docs/DEPLOYMENTS.md](docs/DEPLOYMENTS.md#dashboard)).
@@ -155,7 +155,7 @@ src/            the eight contracts, periphery/VigilMigrator, interfaces (IVigil
 script/         Deploy, MainnetPreflight, Handover, Demo, E2E; manifest.mjs and verify.mjs
 test/           unit, scenarios (historical replays), invariants, fork (mainnet)
 ops/            keeper: status, poke, unwind, liquidate, attest
-web/            read-only dashboard (Vite, viem), deployed to GitHub Pages
+web/            landing page and live dashboard (React, Vite, viem), deployed to GitHub Pages
 calibrator/     data, calibration and backtest behind the parameters
 video/          records and narrates an end-to-end run from the dashboard
 deployments/    manifests per network and version
@@ -164,7 +164,7 @@ docs/           design, deployments, verification, mainnet runbook, audit scope
 
 ## Status
 
-- Live on Robinhood Chain testnet with real Robinhood and Paxos tokens; dashboard on GitHub Pages; keeper and CI status watch running.
+- Live on Robinhood Chain testnet with real Robinhood and Paxos tokens; landing page and dashboard on GitHub Pages; keeper and CI status watch running.
 - Mainnet: pre-flight passes (except the deployer's balance), deployment simulated, runbook and handover ready. Gated on an audit, a multisig and funding — see [docs/MAINNET.md](docs/MAINNET.md).
 - Out of scope for now: cross-asset portfolio margin, senior/junior tranches, governance, non-ERC-8056 assets, coverage for borrowers who do not pay the premium.
 

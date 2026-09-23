@@ -128,20 +128,20 @@ The migrator is symmetric — the position was moved back and forth three times 
 
 ## Dashboard
 
-`web/` is a static, read-only page (Vite + TypeScript + viem) that polls the testnet through Multicall3 every 15 s and draws the haircut curve from `VigilRiskEngine.closureHaircutBps` on-chain. It is deployed to GitHub Pages by `.github/workflows/pages.yml`.
+`web/` builds two static pages with React, Vite and viem: the landing page (`/vigil/`, whose hero card reads the live oracle) and the dashboard (`/vigil/dashboard/`, tabs Overview · Market risk · Contracts · Use it, chosen by the URL hash). The dashboard polls the testnet through Multicall3 every 15 s and draws the haircut curve from `VigilRiskEngine.closureHaircutBps` on-chain; every number on either page comes from pure, unit-tested view functions (`web/src/view`, `web/src/tx`). Both are deployed to GitHub Pages by `.github/workflows/pages.yml`.
 
 ```bash
 cd web && npm install
-npm run dev            # http://127.0.0.1:5173/vigil/
+npm run dev            # http://127.0.0.1:5173/vigil/ and …/vigil/dashboard/
 npm test               # pure-function tests
 npm run test:network   # parity of the on-chain haircut curve with test/unit/CurveFixture.t.sol
 npm run abi            # regenerate src/abi from ../out after `forge build`
 ```
 
-### Use it — the transaction panel
+### Use it — the wallet tab
 
-Panel 04 turns the page into the end-user interface without changing what the rest of it is: a wallet is only
-needed there, the other panels stay read-only. It talks to an injected EIP-1193 wallet (MetaMask, Rabby, …), offers
+The Use it tab (`#use-it`) turns the dashboard into the end-user interface without changing what the rest of it is: a wallet is only
+needed there, the other tabs stay read-only. It talks to an injected EIP-1193 wallet (MetaMask, Rabby, …), offers
 to switch or add the deployment's chain, and shows the wallet's balances, Morpho position, membership and backstop
 holdings, read in one multicall (`web/src/chain/account.ts`).
 
@@ -160,4 +160,4 @@ status line links each confirmed transaction to the explorer, and the account is
 fork with a mock wallet that forwards to the fork (`anvil --auto-impersonate` signs for any address): supply 10
 USDG → 0.01 TSLA collateral → borrow 1 USDG → join → top up 0.5 → deposit 5 into the backstop → request 2 →
 repay all → withdraw collateral → withdraw supply → withdraw the unused escrow, then a rejected borrow. Last run
-20 Sep 2026 against the v4 deployment: 13 actions confirmed, screenshots in `web/test/out/`.
+23 Sep 2026 on the React dashboard against the v4 deployment: 12 actions confirmed (11 transactions and the rejected borrow), screenshots in `web/test/out/`.
