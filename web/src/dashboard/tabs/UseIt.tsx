@@ -25,11 +25,9 @@ export function UseIt({ wallet: w, snapshot, nowMs }: { wallet: WalletApi; snaps
       </div>
       <p className="use-lede">Against the same contracts the rest of this dashboard reads. Every write is simulated first, so a revert shows up as its reason instead of a failed transaction.</p>
       <div className="wallet-bar">
-        {!connected && <button className="use-btn primary" type="button" onClick={() => void w.connect()}>Connect wallet</button>}
-        {connected && !w.onChain && <button className="use-btn" type="button" onClick={() => void w.switchChain()}>Switch to {NETWORK_NAME}</button>}
-        {connected && <span className={w.onChain ? 'wallet-badge on' : 'wallet-badge off'}><i /> {shortAddr(w.address!)} · {w.onChain ? NETWORK_NAME : `chain ${w.chainId}`}</span>}
+        {connected && <span className={w.onChain ? 'wallet-badge on' : 'wallet-badge off'}><i /> {shortAddr(w.address!)} · {w.onChain ? NETWORK_NAME : `chain ${w.chainId} — switch with the button at the top right`}</span>}
         <span className="balances">
-          {w.account ? balancesLine(w.account, SYMBOL) : connected ? 'reading the account…' : 'Connect a wallet to see balances and act. Every other tab stays readable without one.'}
+          {w.account ? balancesLine(w.account, SYMBOL) : connected ? 'reading the account…' : 'Connect a wallet with the button at the top right to see balances and act. Every other tab stays readable without one.'}
         </span>
       </div>
       {IS_TESTNET && (

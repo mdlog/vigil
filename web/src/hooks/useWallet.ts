@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Address, EIP1193Provider, Hex } from 'viem';
 import { client } from '../chain/client';
 import { readAccount, readMarketParams, readRequests, type AccountState, type MarketParams, type WithdrawRequest } from '../chain/account';
-import { currentChainId, ensureChain, onWalletChange, provider, requestAccount, shortError, walletClient } from '../chain/wallet';
+import { authorizedAccount, currentChainId, ensureChain, onWalletChange, provider, requestAccount, shortError, walletClient } from '../chain/wallet';
 import { CHAIN_ID, NETWORK_NAME } from '../deployment';
 import type { Step, TxContext } from '../tx/actions';
 import { walletReady } from '../tx/view';
@@ -88,6 +88,28 @@ export function useWallet(): WalletApi {
       say(shortError(e), 'err');
     }
   }, [refresh, say]);
+
+  // A wallet that already authorised this site reconnects on load, without a prompt (eth_accounts).
+  useEffect(() => {
+    const p = provider();
+    if (!p) return;
+    let cancelled = false;
+    void (async () => {
+      const a = await authorizedAccount(p);
+      if (cancelled || !a || addr.current) return;
+      const id = await currentChainId(p);
+      if (cancelled || addr.current) return;
+      prov.current = p;
+      addr.current = a;
+      chain.current = id;
+      setAddress(a);
+      setChainId(id);
+      await refresh();
+    })().catch(() => {}); // a wallet that refuses eth_accounts simply stays disconnected
+    return () => {
+      cancelled = true;
+    };
+  }, [refresh]);
 
   const connected = address !== null;
   useEffect(() => {

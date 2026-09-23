@@ -45,6 +45,12 @@ export async function requestAccount(p: EIP1193Provider): Promise<Address> {
   return a;
 }
 
+/** The account this site is already authorised for — eth_accounts never opens a prompt — or null (EIP-1102). */
+export async function authorizedAccount(p: EIP1193Provider): Promise<Address | null> {
+  const accounts = (await p.request({ method: 'eth_accounts' })) as Address[];
+  return accounts[0] ?? null;
+}
+
 export function walletClient(p: EIP1193Provider, account: Address): WalletClient {
   return createWalletClient({ account, chain: robinhoodChain, transport: custom(p) });
 }

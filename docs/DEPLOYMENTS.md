@@ -141,9 +141,11 @@ npm run abi            # regenerate src/abi from ../out after `forge build`
 ### Use it — the wallet tab
 
 The Use it tab (`#use-it`) turns the dashboard into the end-user interface without changing what the rest of it is: a wallet is only
-needed there, the other tabs stay read-only. It talks to an injected EIP-1193 wallet (MetaMask, Rabby, …), offers
-to switch or add the deployment's chain, and shows the wallet's balances, Morpho position, membership and backstop
-holdings, read in one multicall (`web/src/chain/account.ts`).
+needed there, the other tabs stay read-only. The wallet control sits in the top bar on every tab: Connect, then
+Switch while an injected EIP-1193 wallet (MetaMask, Rabby, …) is on another chain (it adds the deployment's chain when
+the wallet lacks it), then the address; a wallet that already authorised the site reconnects on load without a prompt
+(`eth_accounts`). The tab shows the wallet's balances, Morpho position, membership and backstop holdings, read in one
+multicall (`web/src/chain/account.ts`).
 
 | Tab | Actions | Contract calls |
 |---|---|---|

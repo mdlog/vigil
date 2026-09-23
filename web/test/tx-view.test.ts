@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AccountState, WithdrawRequest } from '../src/chain/account';
 import {
-  BORROW_HINT, backstopTiles, balancesLine, borrowPreview, borrowTiles, describeLegacy, fieldLimits, freeEscrow, lendTile, memberTiles, requestStatus, walletReady,
+  BORROW_HINT, backstopTiles, balancesLine, borrowPreview, borrowTiles, describeLegacy, fieldLimits, freeEscrow, lendTile, memberTiles, requestStatus, walletChip, walletReady,
 } from '../src/tx/view';
 
 const LLTV = 860_000_000_000_000_000n;
@@ -124,5 +124,13 @@ describe('walletReady', () => {
     expect(walletReady({ ...ok, account: null }, 46630)).toBe(false);
     expect(walletReady({ ...ok, params: null }, 46630)).toBe(false);
     expect(walletReady({ ...ok, address: null }, 46630)).toBe(false);
+  });
+});
+
+describe('walletChip (the header control)', () => {
+  it('offers Connect, then Switch on a foreign chain, then shows the short address', () => {
+    expect(walletChip(null, null, 46630, 'Robinhood Chain testnet')).toEqual({ kind: 'connect' });
+    expect(walletChip('0x90351bB1E85a17D5f70c62C0cC076D39D897076D', 1, 46630, 'Robinhood Chain testnet')).toEqual({ kind: 'switch', label: 'Switch to Robinhood Chain testnet' });
+    expect(walletChip('0x90351bB1E85a17D5f70c62C0cC076D39D897076D', 46630, 46630, 'Robinhood Chain testnet')).toEqual({ kind: 'connected', label: '0x9035…076D' });
   });
 });

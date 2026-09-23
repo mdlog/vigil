@@ -42,7 +42,7 @@ export function App() {
     <div className="dashboard-shell">
       <Sidebar tab={tab} onTab={go} open={menuOpen} onClose={() => setMenuOpen(false)} status={status} lastOkMs={live.lastOkMs} nowMs={nowMs} />
       <div className="dashboard-main">
-        <Topbar tab={tab} status={status} onMenu={() => setMenuOpen(true)} />
+        <Topbar tab={tab} status={status} onMenu={() => setMenuOpen(true)} wallet={wallet} />
         <main className="dashboard-content">
           <Banner status={status} error={live.error} lastOkMs={live.lastOkMs} />
           <PageTitle tab={tab} />

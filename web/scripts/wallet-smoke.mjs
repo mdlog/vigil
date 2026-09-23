@@ -52,8 +52,10 @@ const context = await browser.newContext({ viewport: { width: 1280, height: 900 
 const page = await context.newPage();
 // The wallet the page sees. Without --key-env it forwards everything to the fork (anvil --auto-impersonate signs);
 // with it, transactions and typed data are signed here in Node and only the raw transaction goes out.
+let authorised = false; // like a real wallet: eth_accounts stays [] until the site has been approved once
 await page.exposeBinding('__walletRequest', async (_source, method, params) => {
-  if (method === 'eth_requestAccounts' || method === 'eth_accounts') return [ACCOUNT];
+  if (method === 'eth_requestAccounts') { authorised = true; return [ACCOUNT]; }
+  if (method === 'eth_accounts') return authorised ? [ACCOUNT] : [];
   if (method === 'eth_chainId') return chainHex;
   if (method === 'wallet_switchEthereumChain' || method === 'wallet_addEthereumChain') return null;
   if (signer && method === 'eth_sendTransaction') {
@@ -111,9 +113,14 @@ async function act(tab, label, fieldLabel, amount, expectText) {
 }
 async function tile(kicker) { return page.locator('#use .tile', { hasText: kicker }).locator('.big').first().innerText(); }
 
-await page.getByRole('button', { name: 'Connect wallet' }).click();
-await page.waitForFunction(() => /USDG/.test(document.querySelector('#use .balances')?.textContent ?? ''), null, { timeout: 30_000 });
-console.log('connected:', (await page.locator('#use .balances').innerText()).trim());
+// connect from the header — the page's only Connect button — then prove a reload reconnects without a prompt
+const balances = () => page.waitForFunction(() => /USDG/.test(document.querySelector('#use .balances')?.textContent ?? ''), null, { timeout: 30_000 });
+await page.locator('.dashboard-topbar').getByRole('button', { name: /Connect/ }).click();
+await balances();
+console.log('connected:', (await page.locator('#use .balances').innerText()).trim(), '| header:', (await page.locator('.dashboard-topbar .wallet-chip').innerText()).trim());
+await page.reload({ waitUntil: 'load' });
+await balances();
+console.log('reconnected after a reload, no prompt:', (await page.locator('.dashboard-topbar .wallet-chip').innerText()).trim());
 await page.screenshot({ path: `${OUT}/use-connected.png`, fullPage: false });
 
 if (ONLY === 'migrate') {

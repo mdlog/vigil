@@ -148,6 +148,15 @@ export function describeLegacy(l: Legacy | null, usdg: string): string {
   return `${sameLoan ? '' : 'Different loan token — cannot migrate. '}Your supply there: ${usd(l.assets)} USDG · LLTV ${fmtBps(lltvBpsOf(l.params[4]))} · oracle ${shortAddr(l.params[2])} (plain, no session awareness).`;
 }
 
+export type WalletChip = { kind: 'connect' } | { kind: 'switch'; label: string } | { kind: 'connected'; label: string };
+
+/** The header's wallet control: Connect, then Switch while the wallet is on another chain, then the short address. */
+export function walletChip(address: string | null, chainId: number | null, deploymentChainId: number, networkName: string): WalletChip {
+  if (address === null) return { kind: 'connect' };
+  if (chainId !== deploymentChainId) return { kind: 'switch', label: `Switch to ${networkName}` };
+  return { kind: 'connected', label: shortAddr(address) };
+}
+
 /** Action buttons are enabled only when a wallet is connected, on the deployment's chain, read, and idle. */
 export function walletReady(
   w: { address: string | null; account: AccountState | null; params: Pick<MarketParams, 'lltv'> | null; chainId: number | null; busy: boolean },
