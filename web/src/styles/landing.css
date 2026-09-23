@@ -1,4 +1,4 @@
-/* Landing page — Manus design (vigil-landing-page/client/src/index.css), unchanged rules first. */
+/* Landing page — the Manus design export's stylesheet (ported 23 Sep 2026, export since removed), unchanged rules first. */
 .site-shell { overflow: hidden; background: var(--ink); }
 .ambient { position: absolute; pointer-events: none; border-radius: 999px; filter: blur(1px); opacity: .7; }
 .ambient-top { width: 720px; height: 720px; top: -360px; right: -220px; background: radial-gradient(circle, rgba(58,111,109,.26), transparent 68%); }

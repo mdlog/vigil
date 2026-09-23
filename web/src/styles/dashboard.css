@@ -1,4 +1,4 @@
-/* Dashboard — Manus design (vigil-landing-page/client/src/index.css), unchanged rules first. */
+/* Dashboard — the Manus design export's stylesheet (ported 23 Sep 2026, export since removed), unchanged rules first. */
 /* Dashboard */
 .dashboard-shell { min-height: 100vh; display: flex; background: #f1f2ec; color: var(--ink); }
 .dashboard-sidebar { width: 248px; min-height: 100vh; flex: 0 0 248px; display: flex; flex-direction: column; padding: 26px 18px 21px; color: var(--paper); background: #0b1114; }
