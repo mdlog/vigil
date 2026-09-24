@@ -19,6 +19,8 @@ export default defineConfig({
   base: '/vigil/',
   plugins: [react()],
   resolve: { alias: { '@manifest': MANIFEST } },
+  // dev server only: reachable through the vigil.mdloglabs.org tunnel
+  server: { allowedHosts: ['vigil.mdloglabs.org'] },
   define: {
     __COMMIT__: JSON.stringify(commit()),
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
