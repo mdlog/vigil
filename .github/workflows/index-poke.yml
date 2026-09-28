@@ -1,0 +1,47 @@
+name: Index poke
+
+# VigilSessionOracle.poke persists the premium index; anyone may call it. Nothing else does on the testnet, and
+# `keeper-status` raises "premium index not persisted for 24 h" once it falls behind. This job pokes when the
+# last poke is older than 12 h, four times a day (GitHub drops scheduled runs now and then, so the slots overlap),
+# from the same throwaway key as the feed heartbeat — a poke is ≈ 0.4 M gas, ≈ 0.000004 ETH at 0.01 gwei.
+
+on:
+  schedule:
+    - cron: '15 */6 * * *' # a quarter of an hour before each keeper-status run
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: index-poke
+  cancel-in-progress: false
+
+jobs:
+  poke:
+    name: poke --send
+    runs-on: ubuntu-latest
+    env:
+      MANIFEST: deployments/robinhood-testnet-46630.json
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ops/package-lock.json
+      - name: Build the ABIs
+        run: forge build
+      - run: npm ci
+        working-directory: ops
+      - name: Poke if the index is 12 h behind
+        working-directory: ops
+        env:
+          OPS_PRIVATE_KEY: ${{ secrets.FEED_KEEPER_KEY }}
+        run: |
+          set -o pipefail
+          if [ -z "$OPS_PRIVATE_KEY" ]; then echo "::error::FEED_KEEPER_KEY secret is not set"; exit 1; fi
+          npm run keeper -- poke --send --max-lag-hours 12 --manifest "$MANIFEST" | tee -a "$GITHUB_STEP_SUMMARY"
