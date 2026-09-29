@@ -149,9 +149,11 @@ contract MainnetForkTest is Test {
         uint256 h = d.oracle.currentHaircutBps();
         assertLe(h, 500);
         assertApproxEqRel(d.oracle.price(), raw * (10_000 - h) / 10_000, 1e12, "price = raw * (1 - haircut)");
+        // The feeds are 24/5: they tick through weekday nights and are frozen only across a weekend or holiday.
+        if (cal_ == Regime.CLOSED) assertLe(updatedAt, closeAt, "weekend/holiday: the last update predates the close");
         if (cal_ != Regime.MARKET) {
-            assertLe(updatedAt, closeAt, "outside MARKET the last update predates the close");
-            assertEq(h, 500, "weekend/overnight: engine haircut above the market cap");
+            uint256 engine = d.risk.haircutBps(NVDA);
+            assertEq(h, engine < 500 ? engine : 500, "outside MARKET: the engine haircut, capped for the market");
         }
     }
 
@@ -238,19 +240,25 @@ contract MainnetForkTest is Test {
         assertLt(c.bobLtvAfterUnwind, 8_000);
     }
 
-    /// Monday 09:30 ET: calendar MARKET, the real feed still on Friday → inside the 6 h grace. The weekend haircut
-    /// ramps OUT over the hour after the open (not released at once): +10 min engine ≈ 977·(50/60) > cap → oracle 500;
-    /// +45 min engine ≈ 977·(15/60) ≈ 244 bps — a Monday-morning gap lands while the collateral is still discounted.
+    /// The next open (Monday 09:30 ET after a weekend, 09:30 the next day after a weekday night): calendar MARKET, the
+    /// real feed's last value inside the 6 h grace. The closure's haircut ramps OUT over the hour after the open (not
+    /// released at once): +10 min engine = target·50/60, +45 min = target·15/60 — for a weekend target of 977 that is
+    /// 814 (capped to 500 by the oracle) and 244 bps; a gap at the open lands while the collateral is still discounted.
     function _mondayOpen(uint64 nextOpen) internal {
+        uint256 target = d.risk.targetHaircutBps(NVDA); // this closure's H(L), before the open
+        uint256 at10 = target * 50 / 60;
+        uint256 at45 = target * 15 / 60;
         vm.warp(uint256(nextOpen) + 10 minutes);
         _freshenQuoteFeed();
         (Regime eff,,,) = d.session.regimeOf(NVDA);
         assertEq(uint8(eff), uint8(Regime.MARKET));
         assertTrue(d.session.feedIsUsable(NVDA), "frozen-since-Friday feed is inside the Monday grace");
-        assertApproxEqAbs(uint256(d.risk.haircutBps(NVDA)), uint256(814), 6, "ramp-out 10 min after open");
-        assertEq(d.oracle.currentHaircutBps(), 500, "still capped 10 min after open");
+        assertApproxEqAbs(uint256(d.risk.haircutBps(NVDA)), at10, 6, "ramp-out 10 min after open");
+        assertApproxEqAbs(uint256(d.oracle.currentHaircutBps()), at10 < 500 ? at10 : 500, 6, "capped 10 min after open");
         vm.warp(uint256(nextOpen) + 45 minutes);
-        assertApproxEqAbs(uint256(d.oracle.currentHaircutBps()), uint256(244), 6, "partial haircut 45 min after open");
+        assertApproxEqAbs(
+            uint256(d.oracle.currentHaircutBps()), at45 < 500 ? at45 : 500, 6, "partial haircut 45 min after open"
+        );
         c.priceOpen = d.oracle.price();
         console2.log("monday +45min: oracle haircut %s bps, price %s", d.oracle.currentHaircutBps(), c.priceOpen);
     }
