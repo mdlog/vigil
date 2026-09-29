@@ -74,6 +74,10 @@ library AddMarket {
         if (!c.risk.hasPremiumTable(t.stock)) {
             c.risk.setPremiumTables(t.stock, VigilParams.premiumTable(), VigilParams.bufferTable());
         }
+        require(
+            t.oracle == address(0) || VigilOracle(t.oracle).STOCK_TOKEN() == t.stock,
+            string.concat("AddMarket: the oracle given for ", t.symbol, " prices another token")
+        );
         a.oracle = t.oracle != address(0)
             ? t.oracle
             : address(
@@ -92,13 +96,13 @@ library AddMarket {
             );
         MarketParams memory p = MarketParams(c.usdg, t.stock, a.oracle, c.irm, c.lltv);
         a.id = p.id();
-        bool fresh = c.morpho.market(a.id).lastUpdate == 0;
-        if (fresh) c.morpho.createMarket(p);
+        if (c.morpho.market(a.id).lastUpdate == 0) c.morpho.createMarket(p);
         if (c.premium.marketParams(a.id).oracle == address(0)) c.premium.registerMarket(p);
         if (c.preLiq.marketParams(a.id).oracle == address(0)) c.preLiq.registerMarket(p, c.targetLtv);
         if (c.backstop.coverageCapOf(a.id) == 0) c.backstop.setCoverageCap(a.id, c.coverageCap);
         if (!_lossReporterKnows(c, a.id)) c.lossReporter.registerMarket(p);
-        if (fresh && t.seed > 0) {
+        // an empty market gets the seed: a new one, or one whose broadcast stopped before the supply
+        if (t.seed > 0 && c.morpho.market(a.id).totalSupplyAssets == 0) {
             IERC20(c.usdg).approve(address(c.morpho), t.seed);
             c.morpho.supply(p, t.seed, 0, caller, "");
         }

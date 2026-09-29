@@ -147,6 +147,44 @@ contract AddMarketsTest is Test {
         vm.stopPrank();
     }
 
+    /// A broadcast that stopped after createMarket: the re-run registers the market everywhere and seeds it.
+    function test_rerunFinishesAndSeedsAMarketAPartialRunLeft() public {
+        vm.startPrank(ops);
+        core.session.registerAsset(address(stocks[0]), VigilParams.assetConfig(address(new MockFeed(8, 100e8))));
+        core.risk.setSurface(address(stocks[0]), VigilParams.surfaceFor("AMD"));
+        core.risk.setPremiumTables(address(stocks[0]), VigilParams.premiumTable(), VigilParams.bufferTable());
+        VigilOracle o =
+            new VigilOracle(address(stocks[0]), core.session, core.risk, address(0), address(0), 0, 2 days, 18, 6, 500);
+        MarketParams memory p = MarketParams(address(usdg), address(stocks[0]), address(o), core.irm, 0.86e18);
+        core.morpho.createMarket(p);
+        vm.stopPrank();
+        AddMarket.Added memory a =
+            this.addOne(AddMarket.Ticker("AMD", address(stocks[0]), 1e8, address(0), address(o), 10e6));
+        assertEq(Id.unwrap(a.id), Id.unwrap(p.id()));
+        assertEq(core.premium.marketParams(a.id).oracle, address(o));
+        assertEq(core.preLiq.marketParams(a.id).oracle, address(o));
+        assertEq(core.backstop.coverageCapOf(a.id), 100_000e6);
+        assertEq(core.morpho.market(a.id).totalSupplyAssets, 10e6);
+    }
+
+    /// An oracle given for reuse must price the ticker's own stock token.
+    function test_reusedOracleMustPriceThatStock() public {
+        _addAll();
+        vm.expectRevert(bytes("AddMarket: the oracle given for AMD prices another token"));
+        this.addOne(AddMarket.Ticker("AMD", address(stocks[0]), 1e8, address(0), address(core.template), 10e6));
+    }
+
+    /// Weeks later the new market's oracle reverts (stale feed); a re-run still sees the market as registered.
+    function test_rerunAfterTheOracleWentStale() public {
+        AddMarket.Added[4] memory a = _addAll();
+        vm.warp(block.timestamp + 30 days);
+        vm.expectRevert();
+        VigilOracle(a[0].oracle).price();
+        AddMarket.Added memory b =
+            this.addOne(AddMarket.Ticker("AMD", address(stocks[0]), 1e8, address(0), a[0].oracle, 10e6));
+        assertEq(Id.unwrap(b.id), Id.unwrap(a[0].id));
+    }
+
     function test_leavesTheTslaMarketAlone() public {
         (uint64 sigmaBefore,,,, uint64 at) = core.risk.surfaces(core.template.STOCK_TOKEN());
         _addAll();
