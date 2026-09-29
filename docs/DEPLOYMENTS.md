@@ -68,7 +68,7 @@ Deployment **v4**, 2026-09-19 22:52 UTC, from `0x90351bB1E85a17D5f70c62C0cC076D3
 
 Morpho market TSLA/USDG, LLTV 86 %: id `0x165f9db8f5e1d9982a35dfaadb3f944cf747970c8f819f16f10105f5c7eb6e04`.
 
-All 11 deployed contracts are source-verified on the explorer (full match, solc 0.8.19, `paris`), so every link above opens readable code; TSLA and USDG are Robinhood's and Paxos's own proxies.
+All 11 deployed contracts are source-verified on the explorer (full match, solc 0.8.19, `paris`), so every link above opens readable code; TSLA and USDG are Robinhood's and Paxos's own proxies. `VigilCalendar`, `MockIRM` and `MockFeed` were verified directly only on 29 Sep 2026: until then the explorer showed their source through an earlier deployment with identical bytecode, which its Etherscan-style API reports as verified (so `forge verify-contract` skipped them) while `/api/v2/smart-contracts/<address>` returned `is_verified: false`. `node script/verify.mjs --recheck` submits regardless; the v2 endpoint is the one to check.
 
 The testnet has no Chainlink feed, so `MockFeed` stands in for TSLA/USD (started at 364.27, TSLA's 18 Sep 2026 close). The real feed has a 24 h heartbeat on trading days; to give the mock the same liveness, the [`feed-heartbeat`](../.github/workflows/feed-heartbeat.yml) workflow re-stamps it (same answer, new `updatedAt`) at 13:00 and 17:00 UTC on weekdays from a throwaway key, `0x85120423aeD49e59F92C9D68aB9102402f37A6FC`, that can do nothing else. Without it `feedIsUsable` would fail closed (`VigilStale`) 18 h after the next session close — the intended behaviour for a dead feed, but not what a visitor should see on a demo. The same key runs the [`index-poke`](../.github/workflows/index-poke.yml) workflow, which calls the permissionless `VigilSessionOracle.poke` when the premium index is more than 12 h behind (checked four times a day), so the [`keeper-status`](../.github/workflows/keeper-status.yml) watch does not flag it at 24 h.
 
@@ -91,7 +91,7 @@ calibrator: AMD 0.0197, AMZN 0.0122, NFLX 0.0106, PLTR 0.0187), `setPremiumTable
 oracle's constructor arguments, `createMarket` at 86 % LLTV, registration in `VigilPremium`, `VigilPreLiquidation`
 and `VigilLossReporter`, a 100,000 USDG coverage cap in the shared backstop — and seeds each market with 10 USDG.
 Each step is skipped when already done, so a re-run after a partial broadcast finishes instead of reverting; a ticker already in the manifest's `markets[]` reuses its feed and oracle (or name them with `FEED_<T>` / `ORACLE_<T>`), and `AddMarket.add` refuses a registered asset whose oracle is not given rather than open a second market.
-48 transactions, 10.7 M gas (≈ 0.00011 ETH); the 8 new contracts are source-verified.
+48 transactions, 10.7 M gas (≈ 0.00011 ETH); the 8 new contracts are source-verified (full match — the four feeds with `--recheck`, for the reason above).
 
 | Market | Stock token (Robinhood) | MockFeed (initial price) | VigilOracle | Morpho market id | Transactions |
 |---|---|---|---|---|---|
@@ -104,7 +104,7 @@ Each step is skipped when already done, so a re-run after a partial broadcast fi
 FOUNDRY_PROFILE=fork TICKERS=AMD,AMZN,NFLX,PLTR STOCK_AMD=0x… FEED_INITIAL_AMD=60786999512 … \
   forge script script/AddMarkets.s.sol --rpc-url robinhood_testnet --broadcast --slow
 node script/markets.mjs --broadcast broadcast/AddMarkets.s.sol/46630/run-latest.json --symbols AMD:0x…,AMZN:0x…,…
-node script/verify.mjs --chain 46630 --broadcast broadcast/AddMarkets.s.sol/46630/run-latest.json
+node script/verify.mjs --chain 46630 --broadcast broadcast/AddMarkets.s.sol/46630/run-latest.json --recheck
 ```
 
 `markets.mjs` writes `markets[]` into the manifest (TSLA first); the dashboard's market picker, `ops/keeper.ts` and

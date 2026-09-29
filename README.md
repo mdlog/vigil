@@ -115,7 +115,7 @@ drives the whole flow in a headless browser against an Anvil fork (see [docs/DEP
 
 Testnet v4 (19 Sep 2026): a TSLA/USDG market on Robinhood's own TSLA stock token and Paxos's USDG. The testnet
 has no Chainlink feeds or Morpho, so the feed and the IRM are mocks and Morpho Blue is deployed from source. All
-contracts are source-verified on the [explorer](https://explorer.testnet.chain.robinhood.com). On 29 Sep 2026
+contracts are source-verified on the [explorer](https://explorer.testnet.chain.robinhood.com) (full match). On 29 Sep 2026
 the other stock tokens Robinhood's testnet issues joined the same deployment — one market each, sharing the core
 contracts and the backstop ([`AddMarkets.s.sol`](script/AddMarkets.s.sol),
 [details](docs/DEPLOYMENTS.md#four-more-markets--amd-amzn-nflx-pltr-29-sep-2026)):
@@ -152,7 +152,7 @@ cp .env.example .env                                              # PRIVATE_KEY 
 forge script script/Deploy.s.sol --rpc-url robinhood_testnet                 # simulate
 forge script script/Deploy.s.sol --rpc-url robinhood_testnet --broadcast     # deploy
 node script/manifest.mjs --chain 46630 --env .env --out deployments/…        # manifest from the broadcast record
-node script/verify.mjs --chain 46630                                         # source verification on Blockscout
+node script/verify.mjs --chain 46630                                         # source verification on Blockscout (--recheck if it says "already verified")
 ```
 
 Every dependency (`MORPHO`, `IRM`, `USDG`, `STOCK_TOKEN`, `FEED`, `USDG_FEED`) is read from the environment and

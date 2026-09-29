@@ -8,6 +8,10 @@
 //   node script/verify.mjs --chain 4663                    # verify all
 //   node script/verify.mjs --chain 46630 --only VigilOracle
 //   node script/verify.mjs --chain 4663 --dry              # print the forge commands only
+//   node script/verify.mjs --chain 46630 --only MockFeed --recheck   # submit even if the explorer says "already verified"
+//
+// --recheck: Blockscout's Etherscan-style API calls a contract "verified" when only an identical twin is (same bytecode,
+// earlier deployment), so forge skips it while /api/v2/smart-contracts/<address> still reports is_verified=false.
 import fs from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 
@@ -21,6 +25,7 @@ const VERIFIER_URL = flag("verifier-url", {
 if (!VERIFIER_URL) throw new Error(`no explorer known for chain ${chain}; pass --verifier-url`);
 const only = flag("only");
 const dry = args.includes("--dry");
+const recheck = args.includes("--recheck");
 
 const run = JSON.parse(fs.readFileSync(flag("broadcast", `broadcast/Deploy.s.sol/${chain}/run-latest.json`), "utf8"));
 if (run.chain !== chain) throw new Error(`broadcast is for chain ${run.chain}, not ${chain}`);
@@ -39,6 +44,7 @@ for (const t of creates) {
   const cmd = [
     "verify-contract", "--chain-id", String(chain), "--verifier", "blockscout", "--verifier-url", VERIFIER_URL, "--watch",
     t.contractAddress, `${target[0]}:${target[1]}`, ...(encoded ? ["--constructor-args", encoded] : []),
+    ...(recheck ? ["--skip-is-verified-check"] : []),
   ];
   console.log(`\n== ${t.contractName} ${t.contractAddress}${encoded ? `  constructor(${types.join(",")})` : ""}`);
   if (dry) { console.log(`forge ${cmd.join(" ")}`); continue; }

@@ -80,6 +80,7 @@ is 0 and nobody has been told to deposit.
 ```bash
 node script/manifest.mjs --chain 4663 --env .env.mainnet --out deployments/robinhood-mainnet-4663.json
 node script/verify.mjs --chain 4663           # Blockscout, every CREATE in the broadcast, constructor args from the record
+curl -s https://robinhoodchain.blockscout.com/api/v2/smart-contracts/<address> | jq .is_fully_verified   # true for each; if not, re-run with --recheck
 git add deployments/robinhood-mainnet-4663.json broadcast/Deploy.s.sol/4663 && git commit -m "Deploy v1 on Robinhood Chain mainnet"
 ```
 
