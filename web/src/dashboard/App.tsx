@@ -54,7 +54,7 @@ export function App() {
 
   return (
     <div className="dashboard-shell">
-      <Sidebar tab={tab} onTab={go} open={menuOpen} onClose={() => setMenuOpen(false)} status={status} lastOkMs={live.lastOkMs} nowMs={nowMs} />
+      <Sidebar tab={tab} onTab={go} open={menuOpen} onClose={() => setMenuOpen(false)} status={status} lastOkMs={live.lastOkMs} nowMs={nowMs} market={market} />
       <div className="dashboard-main">
         <Topbar tab={tab} status={status} onMenu={() => setMenuOpen(true)} wallet={wallet} market={market} onPick={pick} />
         <main className="dashboard-content">
@@ -64,7 +64,7 @@ export function App() {
           {tab === 'market-risk' && <MarketRisk live={live} nowMs={nowMs} />}
           {tab === 'contracts' && <Contracts />}
           {tab === 'use-it' && <UseIt wallet={wallet} snapshot={live.snapshot} nowMs={nowMs} market={market} />}
-          <Footer />
+          <Footer market={market} />
         </main>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import { Fragment } from 'react';
 import { ExternalLink, Github, TerminalSquare, X } from 'lucide-react';
 import { Brand } from '../Brand';
-import { ADDR, CHAIN_ID, IS_TESTNET, NETWORK_NAME, explorerAddress } from '../deployment';
+import { CHAIN_ID, IS_TESTNET, NETWORK_NAME, explorerAddress, type Market } from '../deployment';
 import { TABS, TAB_LABEL, type Tab } from '../nav';
 import { fmtAge } from '../ui/format';
 import type { SyncStatus } from '../view/status';
@@ -14,8 +14,8 @@ const HEALTH: Record<SyncStatus, string> = {
 };
 const GROUP: Record<Tab, string> = { overview: 'MONITOR', 'market-risk': 'MONITOR', contracts: 'MONITOR', 'use-it': 'ACT' };
 
-export function Sidebar(props: { tab: Tab; onTab: (t: Tab) => void; open: boolean; onClose: () => void; status: SyncStatus; lastOkMs: number | null; nowMs: number }) {
-  const { tab, onTab, open, onClose, status, lastOkMs, nowMs } = props;
+export function Sidebar(props: { tab: Tab; onTab: (t: Tab) => void; open: boolean; onClose: () => void; status: SyncStatus; lastOkMs: number | null; nowMs: number; market: Market }) {
+  const { tab, onTab, open, onClose, status, lastOkMs, nowMs, market } = props;
   const chainName = NETWORK_NAME.replace(/\s*testnet$/i, '').toUpperCase();
   return (
     <aside className={open ? 'dashboard-sidebar open' : 'dashboard-sidebar'} aria-label="Dashboard navigation">
@@ -38,7 +38,7 @@ export function Sidebar(props: { tab: Tab; onTab: (t: Tab) => void; open: boolea
         ))}
         <small className="nav-spacer">RESOURCES</small>
         <a href="https://github.com/mdlog/vigil" target="_blank" rel="noreferrer"><Github size={16} /> Repository <ExternalLink size={13} /></a>
-        <a href={explorerAddress(ADDR.VigilOracle)} target="_blank" rel="noreferrer"><TerminalSquare size={16} /> Block explorer <ExternalLink size={13} /></a>
+        <a href={explorerAddress(market.oracle)} target="_blank" rel="noreferrer"><TerminalSquare size={16} /> Block explorer <ExternalLink size={13} /></a>
       </nav>
       <div className="sidebar-bottom">
         <div className="sidebar-health" data-status={status}>

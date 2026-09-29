@@ -164,3 +164,10 @@ export function walletReady(
 ): boolean {
   return w.address !== null && w.account !== null && w.params !== null && w.chainId === chainId && !w.busy;
 }
+
+/** The status line once a transaction has finished: marked done (the smoke test waits for it) on the market it ran
+ *  on, dropped when the visitor moved to another market meanwhile — it would read as that market's. */
+export function settledStatus<T extends { done: boolean }>(st: T | null, ranOn: string, nowOn: string): T | null {
+  if (!st || ranOn !== nowOn) return null;
+  return { ...st, done: true };
+}

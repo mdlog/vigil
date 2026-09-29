@@ -8,7 +8,7 @@ import { readAccount, readMarketParams, readRequests, type AccountState, type Ma
 import { authorizedAccount, currentChainId, ensureChain, onWalletChange, provider, requestAccount, shortError, walletClient } from '../chain/wallet';
 import { CHAIN_ID, NETWORK_NAME, type Market } from '../deployment';
 import type { Step, TxContext } from '../tx/actions';
-import { walletReady } from '../tx/view';
+import { settledStatus, walletReady } from '../tx/view';
 
 export type StatusKind = 'info' | 'ok' | 'err';
 export interface TxStatus { text: string; kind: StatusKind; hash?: Hex; done: boolean }
@@ -170,6 +170,7 @@ export function useWallet(m: Market): WalletApi {
         say(`Switch the wallet to ${NETWORK_NAME} first.`, 'err');
         return;
       }
+      const ranOn = mkt.current.id;
       busyRef.current = true;
       setBusy(true);
       say('Preparing…');
@@ -191,7 +192,7 @@ export function useWallet(m: Market): WalletApi {
         busyRef.current = false;
         setBusy(false);
         await refresh();
-        setStatus((st) => (st ? { ...st, done: true } : st)); // the smoke test waits for data-done="1"
+        setStatus((st) => settledStatus(st, ranOn, mkt.current.id)); // the smoke test waits for data-done="1"
       }
     },
     [refresh, say],
