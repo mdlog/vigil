@@ -6,7 +6,7 @@ import type { Address, EIP1193Provider, Hex } from 'viem';
 import { client } from '../chain/client';
 import { readAccount, readMarketParams, readRequests, type AccountState, type MarketParams, type WithdrawRequest } from '../chain/account';
 import { authorizedAccount, currentChainId, ensureChain, onWalletChange, provider, requestAccount, shortError, walletClient } from '../chain/wallet';
-import { CHAIN_ID, NETWORK_NAME } from '../deployment';
+import { CHAIN_ID, NETWORK_NAME, type Market } from '../deployment';
 import type { Step, TxContext } from '../tx/actions';
 import { walletReady } from '../tx/view';
 
@@ -27,9 +27,12 @@ export interface WalletApi {
   switchChain(): Promise<void>;
   say(text: string, kind?: StatusKind): void;
   run(build: (ctx: TxContext) => Promise<Step[]>): Promise<void>;
+  /** Drops the status line unless a transaction is running (a new market or pane starts clean). */
+  clearStatus(): void;
 }
 
-export function useWallet(): WalletApi {
+/** `m` is the market the panel acts on; a new one re-reads the params and the account. */
+export function useWallet(m: Market): WalletApi {
   const [address, setAddress] = useState<Address | null>(null);
   const [chainId, setChainId] = useState<number | null>(null);
   const [account, setAccount] = useState<AccountState | null>(null);
@@ -43,6 +46,7 @@ export function useWallet(): WalletApi {
   const chain = useRef<number | null>(null);
   const par = useRef<MarketParams | null>(null);
   const busyRef = useRef(false);
+  const mkt = useRef(m);
 
   const say = useCallback((text: string, kind: StatusKind = 'info', hash?: Hex) => setStatus({ text, kind, hash, done: false }), []);
 
@@ -53,13 +57,16 @@ export function useWallet(): WalletApi {
       setRequests([]);
       return;
     }
+    const mk = mkt.current;
     try {
       if (!par.current) {
-        par.current = await readMarketParams(client);
-        setParams(par.current);
+        const p = await readMarketParams(client, mk);
+        if (mkt.current.id !== mk.id) return; // the visitor picked another market meanwhile
+        par.current = p;
+        setParams(p);
       }
-      const [acct, reqs] = await Promise.all([readAccount(client, a), readRequests(client, a)]);
-      if (addr.current !== a) return; // the wallet switched account meanwhile
+      const [acct, reqs] = await Promise.all([readAccount(client, mk, a), readRequests(client, a)]);
+      if (addr.current !== a || mkt.current.id !== mk.id) return; // the wallet or the market changed meanwhile
       setAccount(acct);
       setRequests(reqs);
     } catch (e) {
@@ -111,6 +118,17 @@ export function useWallet(): WalletApi {
     };
   }, [refresh]);
 
+  // another market: forget the old one's params and account, read the new ones
+  useEffect(() => {
+    if (mkt.current.id === m.id) return;
+    mkt.current = m;
+    par.current = null;
+    setParams(null);
+    setAccount(null);
+    if (!busyRef.current) setStatus(null);
+    void refresh();
+  }, [m, refresh]);
+
   const connected = address !== null;
   useEffect(() => {
     const p = prov.current;
@@ -156,7 +174,7 @@ export function useWallet(): WalletApi {
       setBusy(true);
       say('Preparing…');
       try {
-        const ctx: TxContext = { client, wallet: walletClient(p, a), account: a, params: par.current, say: (t) => say(t) };
+        const ctx: TxContext = { client, wallet: walletClient(p, a), account: a, params: par.current, market: mkt.current, say: (t) => say(t) };
         const steps = await build(ctx);
         for (const [i, s] of steps.entries()) {
           const n = steps.length > 1 ? `${i + 1}/${steps.length} ` : '';
@@ -183,5 +201,8 @@ export function useWallet(): WalletApi {
     address, chainId, onChain: chainId === CHAIN_ID, account, requests, params, busy, status,
     ready: walletReady({ address, account, params, chainId, busy }, CHAIN_ID),
     connect, switchChain, say, run,
+    clearStatus: () => {
+      if (!busyRef.current) setStatus(null);
+    },
   };
 }

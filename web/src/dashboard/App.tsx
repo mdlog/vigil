@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { DEFAULT_MARKET } from '../deployment';
 import { hashOf, tabFromHash, type Tab } from '../nav';
 import { useNow } from '../hooks/useNow';
 import { useSnapshot } from '../hooks/useSnapshot';
@@ -17,8 +18,8 @@ import { UseIt } from './tabs/UseIt';
 export function App() {
   const [tab, setTab] = useState<Tab>(() => tabFromHash(location.hash));
   const [menuOpen, setMenuOpen] = useState(false);
-  const live = useSnapshot();
-  const wallet = useWallet(); // at the root, so switching tabs never drops the connection
+  const live = useSnapshot(DEFAULT_MARKET);
+  const wallet = useWallet(DEFAULT_MARKET); // at the root, so switching tabs never drops the connection
   const nowMs = useNow(1000);
   const status = syncStatus(live.snapshot !== null, live.lastOkMs, live.error, nowMs);
 

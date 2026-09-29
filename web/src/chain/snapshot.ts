@@ -1,5 +1,5 @@
 import type { PublicClient } from 'viem';
-import { ADDR, ASSET, FEED, MARKET_ID, MULTICALL3 } from '../deployment';
+import { ADDR, DEFAULT_MARKET, MULTICALL3, type Market } from '../deployment';
 import { multicall3Abi } from '../abi/multicall3';
 import { vigilSessionOracleAbi } from '../abi/vigilSessionOracle';
 import { vigilRiskEngineAbi } from '../abi/vigilRiskEngine';
@@ -28,8 +28,6 @@ export interface Snapshot {
 
 export type MulticallResult = { status: 'success'; result: unknown } | { status: 'failure'; error: Error };
 
-const asset = () => ASSET;
-
 /** Order is the contract between coreCalls() and decodeCore(). Keep both in sync. */
 export const CORE_ORDER = [
   'blockTimestamp', 'regimeOf', 'closureOf', 'feedIsUsable', 'premiumIndex', 'lastPokeOf', 'configs',
@@ -39,12 +37,12 @@ export const CORE_ORDER = [
   'market', 'latestRoundData',
 ] as const;
 
-export function coreCalls() {
+export function coreCalls(m: Market) {
   const so = { address: ADDR.VigilSessionOracle, abi: vigilSessionOracleAbi } as const;
   const risk = { address: ADDR.VigilRiskEngine, abi: vigilRiskEngineAbi } as const;
-  const oracle = { address: ADDR.VigilOracle, abi: vigilOracleAbi } as const;
+  const oracle = { address: m.oracle, abi: vigilOracleAbi } as const;
   const backstop = { address: ADDR.VigilBackstop, abi: vigilBackstopAbi } as const;
-  const a = asset();
+  const a = m.asset;
   // eventActive(asset, ts): the local clock is within seconds of block time on Nitro chains.
   const now = BigInt(Math.floor(Date.now() / 1000));
   return [
@@ -65,18 +63,18 @@ export function coreCalls() {
     { ...oracle, functionName: 'MARKET_HAIRCUT_CAP_BPS' },
     { ...backstop, functionName: 'totalAssets' },
     { ...backstop, functionName: 'totalSupply' },
-    { ...backstop, functionName: 'coverageCapOf', args: [MARKET_ID] },
+    { ...backstop, functionName: 'coverageCapOf', args: [m.id] },
     { ...backstop, functionName: 'totalCovered' },
     { ...backstop, functionName: 'COOLDOWN' },
-    { address: ADDR.Morpho, abi: morphoAbi, functionName: 'market', args: [MARKET_ID] },
-    { address: FEED, abi: mockFeedAbi, functionName: 'latestRoundData' }, // same signature as Chainlink's AggregatorV3
+    { address: ADDR.Morpho, abi: morphoAbi, functionName: 'market', args: [m.id] },
+    { address: m.feed, abi: mockFeedAbi, functionName: 'latestRoundData' }, // same signature as Chainlink's AggregatorV3
   ] as const;
 }
 
-export function rateCall(regime: Regime, closureLen: number) {
+export function rateCall(m: Market, regime: Regime, closureLen: number) {
   return {
     address: ADDR.VigilRiskEngine, abi: vigilRiskEngineAbi, functionName: 'premiumRefRatePerSecond',
-    args: [asset(), regime, BigInt(closureLen)],
+    args: [m.asset, regime, BigInt(closureLen)],
   } as const;
 }
 
@@ -143,12 +141,12 @@ export function decodeCore(results: MulticallResult[], fetchedAtMs: number): Omi
   };
 }
 
-export async function readSnapshot(client: PublicClient): Promise<Snapshot> {
+export async function readSnapshot(client: PublicClient, m: Market = DEFAULT_MARKET): Promise<Snapshot> {
   const fetchedAtMs = Date.now();
-  const core = (await client.multicall({ contracts: coreCalls() as never, allowFailure: true })) as MulticallResult[];
+  const core = (await client.multicall({ contracts: coreCalls(m) as never, allowFailure: true })) as MulticallResult[];
   const base = decodeCore(core, fetchedAtMs);
   const regimeForRate = (base.regime === 0 ? 3 : base.regime) as Regime; // MARKET has no premium; show the closed-regime rate
-  const [rate] = (await client.multicall({ contracts: [rateCall(regimeForRate, base.closureLen)] as never, allowFailure: true })) as MulticallResult[];
+  const [rate] = (await client.multicall({ contracts: [rateCall(m, regimeForRate, base.closureLen)] as never, allowFailure: true })) as MulticallResult[];
   const refRatePerSecond = rate && rate.status === 'success' ? BigInt(rate.result as bigint) : 0n;
   return { ...base, refRatePerSecond };
 }

@@ -2,7 +2,7 @@
  *  requests from the vault's logs. */
 import { parseAbiItem, type Address, type PublicClient } from 'viem';
 import manifest from '@manifest';
-import { ADDR, ASSET, MARKET_ID } from '../deployment';
+import { ADDR, type Market } from '../deployment';
 import { erc20Abi } from '../abi/erc20';
 import { morphoAbi } from '../abi/morpho';
 import { vigilPremiumAbi } from '../abi/vigilPremium';
@@ -26,14 +26,14 @@ export interface AccountState {
 
 export interface WithdrawRequest { id: bigint; shares: bigint; assetsNow: bigint; readyAt: number; claimed: boolean }
 
-export async function readMarketParams(client: PublicClient): Promise<MarketParams> {
+export async function readMarketParams(client: PublicClient, m: Market): Promise<MarketParams> {
   const [loanToken, collateralToken, oracle, irm, lltv] = await client.readContract({
-    address: ADDR.Morpho, abi: morphoAbi, functionName: 'idToMarketParams', args: [MARKET_ID],
+    address: ADDR.Morpho, abi: morphoAbi, functionName: 'idToMarketParams', args: [m.id],
   });
   return { loanToken, collateralToken, oracle, irm, lltv };
 }
 
-export async function readAccount(client: PublicClient, address: Address): Promise<AccountState> {
+export async function readAccount(client: PublicClient, m: Market, address: Address): Promise<AccountState> {
   const morpho = { address: ADDR.Morpho, abi: morphoAbi } as const;
   const premium = { address: ADDR.VigilPremium, abi: vigilPremiumAbi } as const;
   const backstop = { address: ADDR.VigilBackstop, abi: vigilBackstopAbi } as const;
@@ -44,14 +44,14 @@ export async function readAccount(client: PublicClient, address: Address): Promi
       allowFailure: false,
       contracts: [
         { address: usdgAddr, abi: erc20Abi, functionName: 'balanceOf', args: [address] },
-        { address: ASSET, abi: erc20Abi, functionName: 'balanceOf', args: [address] },
-        { ...morpho, functionName: 'position', args: [MARKET_ID, address] },
-        { ...morpho, functionName: 'market', args: [MARKET_ID] },
+        { address: m.asset, abi: erc20Abi, functionName: 'balanceOf', args: [address] },
+        { ...morpho, functionName: 'position', args: [m.id, address] },
+        { ...morpho, functionName: 'market', args: [m.id] },
         { ...morpho, functionName: 'isAuthorized', args: [address, ADDR.VigilPreLiquidation] },
-        { ...premium, functionName: 'isMember', args: [MARKET_ID, address] },
-        { ...premium, functionName: 'isDelinquent', args: [MARKET_ID, address] },
-        { ...premium, functionName: 'escrowOf', args: [MARKET_ID, address] },
-        { ...premium, functionName: 'minReserve', args: [MARKET_ID, address] },
+        { ...premium, functionName: 'isMember', args: [m.id, address] },
+        { ...premium, functionName: 'isDelinquent', args: [m.id, address] },
+        { ...premium, functionName: 'escrowOf', args: [m.id, address] },
+        { ...premium, functionName: 'minReserve', args: [m.id, address] },
         { ...backstop, functionName: 'balanceOf', args: [address] },
         { ...backstop, functionName: 'decimals' },
       ],

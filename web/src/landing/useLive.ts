@@ -15,7 +15,7 @@ export function useLive(): LandingLive {
         if (cancelled) return;
         stop = startPolling(
           async () => {
-            const snapshot = await readSnapshot(client);
+            const snapshot = await readSnapshot(client); // the default market (TSLA)
             setLive({ snapshot, lastOkMs: Date.now(), error: null });
           },
           (e) => setLive((l) => ({ ...l, error: e instanceof Error ? e.message : String(e) })),

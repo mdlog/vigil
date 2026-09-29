@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { PublicClient, WalletClient } from 'viem';
 import type { AccountState, MarketParams } from '../src/chain/account';
-import { ADDR, MARKET_ID } from '../src/deployment';
+import { ADDR, DEFAULT_MARKET, MARKETS, MARKET_ID } from '../src/deployment';
 import {
-  USDG, isMarketId, join, migrate, migratePrecheck, repay, requestWithdraw, supply, topUp, validateAmount, withdraw, type Legacy, type Step, type TxContext,
+  USDG, addCollateral, isMarketId, join, migrate, migratePrecheck, repay, requestWithdraw, supply, topUp, validateAmount, withdraw, type Legacy, type Step, type TxContext,
 } from '../src/tx/actions';
 
 const ME = '0x00000000000000000000000000000000000000aa' as const;
 const PARAMS: MarketParams = { loanToken: ADDR.USDG, collateralToken: ADDR.StockToken, oracle: ADDR.VigilOracle, irm: ADDR.MockIRM, lltv: 860_000_000_000_000_000n };
 
 /** A client and a wallet that record what the page would simulate and send; reads answer from `reads`. */
-function harness(reads: Record<string, unknown> = {}) {
+function harness(reads: Record<string, unknown> = {}, market = DEFAULT_MARKET) {
   const sims: { address: string; functionName: string; args: readonly unknown[] }[] = [];
   const signed: unknown[] = [];
   const said: string[] = [];
@@ -28,7 +28,7 @@ function harness(reads: Record<string, unknown> = {}) {
     writeContract: async () => `0x${'ab'.repeat(32)}`,
     signTypedData: async (td: unknown) => { signed.push(td); return `0x${'11'.repeat(32)}${'22'.repeat(32)}1b`; },
   } as unknown as WalletClient;
-  const ctx: TxContext = { client, wallet, account: ME, params: PARAMS, say: (t) => { said.push(t); } };
+  const ctx: TxContext = { client, wallet, account: ME, params: PARAMS, market, say: (t) => { said.push(t); } };
   return { ctx, sims, signed, said };
 }
 const run = async (steps: Step[]) => { for (const s of steps) await s.send(); };
@@ -165,5 +165,19 @@ describe('validateAmount', () => {
   it('explains an amount above the limit', () => {
     expect(validateAmount('5', 6, 4_000_000n, 'USDG')).toEqual({ ok: false, error: 'That is more than the 4 USDG available.' });
     expect(validateAmount('5', 6, 0n, 'USDG')).toEqual({ ok: false, error: 'That is more than the 0 USDG available.' });
+  });
+});
+
+describe('the context market', () => {
+  it('collateral and escrow calls follow ctx.market, not the default', async () => {
+    const amd = MARKETS.find((m) => m.symbol === 'AMD')!;
+    const h = harness({ allowance: 10n ** 30n }, amd);
+    const add = await addCollateral(h.ctx, 10n ** 18n);
+    expect(add.map((s) => s.label)).toEqual(['Add 1 AMD collateral']);
+    await run(await topUp(h.ctx, 1_000_000n));
+    const top = h.sims.find((c) => c.functionName === 'topUp')!;
+    expect(top.args[0]).toBe(amd.id);
+    const approve = await addCollateral(harness({ allowance: 0n }, amd).ctx, 10n ** 18n);
+    expect(approve[0]!.label).toBe('Approve AMD for Morpho');
   });
 });

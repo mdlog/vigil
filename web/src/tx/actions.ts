@@ -2,7 +2,7 @@
  *  steps of one user action — an approval is prepended only when the allowance is short — and every step simulates
  *  before it asks the wallet, so a revert surfaces as its custom error instead of a failed transaction. No DOM, no React. */
 import { formatUnits, isHex, parseSignature, type Address, type Hex, type PublicClient, type WalletClient } from 'viem';
-import { ADDR, ASSET, CHAIN_ID, MARKET_ID, SYMBOL } from '../deployment';
+import { ADDR, CHAIN_ID, type Market } from '../deployment';
 import { erc20Abi } from '../abi/erc20';
 import { morphoAbi } from '../abi/morpho';
 import { vigilPremiumAbi } from '../abi/vigilPremium';
@@ -23,8 +23,10 @@ export interface TxContext {
   client: PublicClient;
   wallet: WalletClient;
   account: Address;
-  /** The Vigil market's params (Morpho's `idToMarketParams(MARKET_ID)`). */
+  /** The Vigil market's params (Morpho's `idToMarketParams(market.id)`). */
   params: MarketParams;
+  /** The market every call of this action targets. */
+  market: Market;
   /** Progress text for a step that needs more than one wallet prompt (the migration's signature). */
   say: (text: string) => void;
 }
@@ -60,8 +62,8 @@ export const withdraw = async (ctx: TxContext, a: AccountState, v: bigint): Prom
 
 // ── Borrow ──
 export const addCollateral = async (ctx: TxContext, v: bigint): Promise<Step[]> => [
-  ...(await approveSteps(ctx, ASSET, ADDR.Morpho, v, `${SYMBOL} for Morpho`)),
-  { label: `Add ${stk(v)} ${SYMBOL} collateral`, send: writeStep(ctx, morpho('supplyCollateral', [ctx.params, v, ctx.account, NONE])) },
+  ...(await approveSteps(ctx, ctx.market.asset, ADDR.Morpho, v, `${ctx.market.symbol} for Morpho`)),
+  { label: `Add ${stk(v)} ${ctx.market.symbol} collateral`, send: writeStep(ctx, morpho('supplyCollateral', [ctx.params, v, ctx.account, NONE])) },
 ];
 export const borrow = async (ctx: TxContext, v: bigint): Promise<Step[]> => [
   { label: `Borrow ${usd(v)} USDG`, send: writeStep(ctx, morpho('borrow', [ctx.params, v, 0n, ctx.account, ctx.account])) },
@@ -79,7 +81,7 @@ export const repay = async (ctx: TxContext, a: AccountState, v: bigint): Promise
   ];
 };
 export const withdrawCollateral = async (ctx: TxContext, v: bigint): Promise<Step[]> => [
-  { label: `Withdraw ${stk(v)} ${SYMBOL}`, send: writeStep(ctx, morpho('withdrawCollateral', [ctx.params, v, ctx.account, ctx.account])) },
+  { label: `Withdraw ${stk(v)} ${ctx.market.symbol}`, send: writeStep(ctx, morpho('withdrawCollateral', [ctx.params, v, ctx.account, ctx.account])) },
 ];
 
 // ── Member ──
@@ -91,10 +93,10 @@ export const leave = async (ctx: TxContext): Promise<Step[]> => [
 ];
 export const topUp = async (ctx: TxContext, v: bigint): Promise<Step[]> => [
   ...(await approveSteps(ctx, USDG, ADDR.VigilPremium, v, 'USDG for the premium escrow')),
-  { label: `Top up escrow by ${usd(v)} USDG`, send: writeStep(ctx, premium('topUp', [MARKET_ID, ctx.account, v])) },
+  { label: `Top up escrow by ${usd(v)} USDG`, send: writeStep(ctx, premium('topUp', [ctx.market.id, ctx.account, v])) },
 ];
 export const withdrawUnused = async (ctx: TxContext, v: bigint): Promise<Step[]> => [
-  { label: `Withdraw ${usd(v)} USDG from escrow`, send: writeStep(ctx, premium('withdrawUnused', [MARKET_ID, v])) },
+  { label: `Withdraw ${usd(v)} USDG from escrow`, send: writeStep(ctx, premium('withdrawUnused', [ctx.market.id, v])) },
 ];
 
 // ── Backstop ──

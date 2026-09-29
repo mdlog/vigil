@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { decodeCore, coreCalls, type MulticallResult } from '../src/chain/snapshot';
+import { DEFAULT_MARKET, MARKETS } from '../src/deployment';
 
 const ok = <T>(result: T): MulticallResult => ({ status: 'success', result } as MulticallResult);
 const fail = (msg: string): MulticallResult => ({ status: 'failure', error: new Error(msg) } as MulticallResult);
@@ -32,7 +33,7 @@ const fixture: MulticallResult[] = [
 
 describe('decodeCore', () => {
   it('decodes a Saturday CLOSED snapshot', () => {
-    expect(coreCalls()).toHaveLength(fixture.length);
+    expect(coreCalls(DEFAULT_MARKET)).toHaveLength(fixture.length);
     const s = decodeCore(fixture, 1_000);
     expect(s.regime).toBe(3);
     expect(s.calRegime).toBe(3);
@@ -66,5 +67,19 @@ describe('decodeCore', () => {
     const f = fixture.slice();
     f[1] = fail('boom');
     expect(() => decodeCore(f, 0)).toThrow(/regimeOf/);
+  });
+});
+
+describe('coreCalls', () => {
+  it('points every per-asset read at the chosen market', () => {
+    const amd = MARKETS.find((m) => m.symbol === 'AMD')!;
+    const calls = coreCalls(amd) as readonly { address: string; functionName: string; args?: readonly unknown[] }[];
+    const byName = (n: string) => calls.find((c) => c.functionName === n)!;
+    expect(byName('regimeOf').args).toEqual([amd.asset]);
+    expect(byName('surfaces').args).toEqual([amd.asset]);
+    expect(byName('price').address).toBe(amd.oracle);
+    expect(byName('coverageCapOf').args).toEqual([amd.id]);
+    expect(byName('market').args).toEqual([amd.id]);
+    expect(byName('latestRoundData').address).toBe(amd.feed);
   });
 });
