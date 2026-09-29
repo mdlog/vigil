@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { client } from '../../chain/client';
 import { shortError } from '../../chain/wallet';
-import { ADDR, LEGACY_MARKET_ID } from '../../deployment';
+import { ADDR, DEFAULT_MARKET, LEGACY_MARKET_ID, type Market } from '../../deployment';
 import type { WalletApi } from '../../hooks/useWallet';
 import { USDG, isMarketId, migrate, migratePrecheck, readLegacy, settleLegacy, supply, validateAmount, withdraw, type Legacy } from '../../tx/actions';
 import { MIGRATE_HINT, describeLegacy, fieldLimits, lendTile } from '../../tx/view';
 import { ActionButton, Field, Tile } from './atoms';
 
-export function LendPane({ w }: { w: WalletApi }) {
+export function LendPane({ w, market }: { w: WalletApi; market: Market }) {
   const [supplyIn, setSupplyIn] = useState('');
   const [withdrawIn, setWithdrawIn] = useState('');
   const [marketId, setMarketId] = useState<string>(LEGACY_MARKET_ID ?? '');
@@ -77,7 +77,8 @@ export function LendPane({ w }: { w: WalletApi }) {
           <ActionButton ready={w.ready} onClick={onWithdraw}>Withdraw</ActionButton>
           <p className="muted">Withdraw any time while the market has liquidity.</p>
         </div>
-        {ADDR.VigilMigrator && (
+        {/* the migration demo's plain-oracle market is TSLA's: offered on the TSLA market only */}
+        {ADDR.VigilMigrator && market.id === DEFAULT_MARKET.id && (
           <div className="form">
             <label className="field">
               <span className="field-label">Migrate from another market</span>

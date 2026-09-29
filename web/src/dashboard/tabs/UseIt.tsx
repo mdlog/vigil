@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Snapshot } from '../../chain/snapshot';
-import { IS_TESTNET, NETWORK_NAME, SYMBOL, explorerTx } from '../../deployment';
+import { IS_TESTNET, NETWORK_NAME, explorerTx, type Market } from '../../deployment';
 import type { WalletApi } from '../../hooks/useWallet';
 import { balancesLine } from '../../tx/view';
 import { shortAddr } from '../../ui/format';
@@ -13,8 +13,13 @@ const PANES = ['Lend', 'Borrow', 'Member', 'Backstop'] as const;
 type Pane = (typeof PANES)[number];
 
 /** Lend, borrow, join, back the vault — from the visitor's own wallet, against the contracts the other tabs read. */
-export function UseIt({ wallet: w, snapshot, nowMs }: { wallet: WalletApi; snapshot: Snapshot | null; nowMs: number }) {
+export function UseIt({ wallet: w, snapshot, nowMs, market }: { wallet: WalletApi; snapshot: Snapshot | null; nowMs: number; market: Market }) {
   const [pane, setPane] = useState<Pane>('Lend');
+  const SYMBOL = market.symbol;
+  const pick = (p: Pane) => {
+    setPane(p);
+    w.clearStatus(); // a message from one pane does not belong under the next
+  };
   const connected = w.address !== null;
   const hidden = (p: Pane) => (pane === p ? 'pane' : 'pane hidden');
   return (
@@ -37,13 +42,13 @@ export function UseIt({ wallet: w, snapshot, nowMs }: { wallet: WalletApi; snaps
       )}
       <div className="use-tabs" role="tablist" aria-label="Actions">
         {PANES.map((p) => (
-          <button key={p} type="button" role="tab" aria-selected={pane === p} className={pane === p ? 'active' : undefined} onClick={() => setPane(p)}>{p}</button>
+          <button key={p} type="button" role="tab" aria-selected={pane === p} className={pane === p ? 'active' : undefined} onClick={() => pick(p)}>{p}</button>
         ))}
       </div>
-      <div className={hidden('Lend')} role="tabpanel"><LendPane w={w} /></div>
-      <div className={hidden('Borrow')} role="tabpanel"><BorrowPane w={w} snapshot={snapshot} /></div>
-      <div className={hidden('Member')} role="tabpanel"><MemberPane w={w} /></div>
-      <div className={hidden('Backstop')} role="tabpanel"><BackstopPane w={w} snapshot={snapshot} nowMs={nowMs} /></div>
+      <div className={hidden('Lend')} role="tabpanel"><LendPane key={market.id} w={w} market={market} /></div>
+      <div className={hidden('Borrow')} role="tabpanel"><BorrowPane key={market.id} w={w} snapshot={snapshot} market={market} /></div>
+      <div className={hidden('Member')} role="tabpanel"><MemberPane key={market.id} w={w} /></div>
+      <div className={hidden('Backstop')} role="tabpanel"><BackstopPane key={market.id} w={w} snapshot={snapshot} nowMs={nowMs} /></div>
       {w.status && (
         <p className={`tx-status ${w.status.kind}`} role="status" data-done={w.status.done ? '1' : undefined}>
           {w.status.text}

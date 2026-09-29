@@ -140,3 +140,27 @@
   .wallet-connect .label-long { display: none; }
   .wallet-connect .label-short { display: inline; }
 }
+/* market picker (top bar) and the per-market table (Contracts) */
+.market-picker { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid #dce0d8; background: #f1f3eb; }
+.market-picker button { padding: 7px 10px; background: transparent; border: 0; color: #7e8980; font: 500 10px/1 var(--mono); letter-spacing: .04em; cursor: pointer; }
+.market-picker button:hover { color: var(--ink); }
+.market-picker button.active { background: var(--ink); color: var(--paper); }
+.markets-table { margin-top: 34px; }
+.markets-table .panel-heading { height: auto; margin-bottom: 14px; }
+.markets-table .muted { margin: 0 0 14px; }
+.markets-scroll { overflow-x: auto; }
+.markets-table table { width: 100%; min-width: 640px; border-collapse: collapse; font: 500 10px/1.4 var(--mono); color: #4d5a53; }
+.markets-table th { padding: 10px 12px; text-align: left; color: #87918a; font-weight: 500; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; border-bottom: 1px solid #dfe3db; }
+.markets-table td { padding: 12px; border-bottom: 1px solid #e6e9e1; }
+.markets-table td b { color: var(--ink); }
+.markets-table a:hover code { color: var(--ink); text-decoration: underline; }
+@media (max-width: 920px) {
+  .dashboard-topbar { flex-wrap: wrap; height: auto; min-height: 64px; padding-block: 10px; row-gap: 10px; }
+  .dashboard-top-actions { flex-wrap: wrap; }
+  .market-picker { order: 3; }
+}
+@media (max-width: 620px) {
+  .dashboard-top-actions { width: 100%; justify-content: space-between; }
+  .market-picker { width: 100%; justify-content: space-between; }
+  .market-picker button { flex: 1; padding-inline: 4px; }
+}

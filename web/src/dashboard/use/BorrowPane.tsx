@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import type { Snapshot } from '../../chain/snapshot';
-import { SYMBOL } from '../../deployment';
+import type { Market } from '../../deployment';
 import type { WalletApi } from '../../hooks/useWallet';
 import { addCollateral, borrow, repay, validateAmount, withdrawCollateral } from '../../tx/actions';
 import { borrowPreview, borrowTiles, fieldLimits } from '../../tx/view';
 import { ActionButton, Field, Tile } from './atoms';
 
-export function BorrowPane({ w, snapshot }: { w: WalletApi; snapshot: Snapshot | null }) {
+export function BorrowPane({ w, snapshot, market }: { w: WalletApi; snapshot: Snapshot | null; market: Market }) {
+  const SYMBOL = market.symbol;
   const [addIn, setAddIn] = useState('');
   const [borrowIn, setBorrowIn] = useState('');
   const [repayIn, setRepayIn] = useState('');

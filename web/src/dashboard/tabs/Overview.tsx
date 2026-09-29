@@ -1,5 +1,5 @@
 import { ArrowDownRight, ArrowUpRight, ShieldCheck } from 'lucide-react';
-import { SYMBOL } from '../../deployment';
+import type { Market } from '../../deployment';
 import type { Live } from '../../hooks/useSnapshot';
 import { fmtBps } from '../../ui/format';
 import { etClock } from '../../ui/time';
@@ -23,7 +23,7 @@ function Stat({ label, value, note, tone }: { label: string; value?: string; not
   );
 }
 
-export function Overview({ live, nowMs }: { live: Live; nowMs: number }) {
+export function Overview({ live, nowMs, market }: { live: Live; nowMs: number; market: Market }) {
   const s = live.snapshot;
   const nowSec = Math.floor(nowMs / 1000);
   const v = s ? sessionView(s, nowMs) : null;
@@ -62,12 +62,12 @@ export function Overview({ live, nowMs }: { live: Live; nowMs: number }) {
         <article className="oracle-panel" id="oracle">
           <div className="panel-label"><span>ORACLE STATUS</span><ShieldCheck size={16} /></div>
           <div className="oracle-value">
-            <small>VIGIL ORACLE · USDG PER {SYMBOL}</small>
+            <small>VIGIL ORACLE · USDG PER {market.symbol}</small>
             <strong className={o?.reverting ? 'warn-text' : undefined}>{o?.price ?? '—'}</strong>
             <span>{o?.formula ?? ''}</span>
           </div>
           <div className="oracle-compare">
-            <div><small>RAW FEED · {SYMBOL}/USD</small><b>{o?.feed ?? '—'}</b></div>
+            <div><small>RAW FEED · {market.symbol}/USD</small><b>{o?.feed ?? '—'}</b></div>
             <ArrowDownRight size={18} />
             <div><small>HAIRCUT IN FORCE</small><b className="amber-text">{o?.haircut ?? '—'}</b></div>
           </div>
@@ -96,7 +96,7 @@ export function Overview({ live, nowMs }: { live: Live; nowMs: number }) {
 
         <article className="panel market-panel" id="market">
           <div className="panel-heading">
-            <div><span className="panel-eyebrow">03 / MORPHO MARKET</span><h3>{SYMBOL} / USDG</h3></div>
+            <div><span className="panel-eyebrow">03 / MORPHO MARKET</span><h3>{market.symbol} / USDG</h3></div>
             <span className="lltv-badge">LLTV {m?.lltv ?? '—'}</span>
           </div>
           <div className="market-numbers">

@@ -1,5 +1,5 @@
 import { ArrowUpRight, ExternalLink } from 'lucide-react';
-import { ADDR, CONTRACT_ORDER, MARKET_ID, TX_OF, explorerAddress, explorerTx } from '../../deployment';
+import { ADDR, MARKETS, CONTRACT_ORDER, MARKET_ID, TX_OF, explorerAddress, explorerTx } from '../../deployment';
 import { shortAddr } from '../../ui/format';
 import { ISSUER, ROLE } from '../contractsInfo';
 
@@ -57,7 +57,29 @@ export function Contracts() {
           );
         })}
       </div>
-      <p className="market-id">Morpho market id {MARKET_ID}</p>
+      {MARKETS.length < 2 && <p className="market-id">Morpho market id {MARKET_ID}</p>}
+      {MARKETS.length > 1 && (
+        <div className="markets-table">
+          <div className="panel-heading"><div><span className="panel-eyebrow">06 / MARKETS</span><h3>One Morpho market per stock token</h3></div></div>
+          <p className="muted">The contracts above are shared; each market adds its own feed and VigilOracle, registered in them. The stock token and feed listed above are {MARKETS[0]!.symbol}&apos;s.</p>
+          <div className="markets-scroll">
+            <table>
+              <thead><tr><th>Market</th><th>Stock token</th><th>Feed</th><th>VigilOracle</th><th>Morpho market id</th></tr></thead>
+              <tbody>
+                {MARKETS.map((m) => (
+                  <tr key={m.id}>
+                    <td><b>{m.symbol}</b> / USDG</td>
+                    <td><a href={explorerAddress(m.asset)} target="_blank" rel="noreferrer" title={m.asset}><code>{shortAddr(m.asset)}</code></a></td>
+                    <td><a href={explorerAddress(m.feed)} target="_blank" rel="noreferrer" title={m.feed}><code>{shortAddr(m.feed)}</code></a></td>
+                    <td><a href={explorerAddress(m.oracle)} target="_blank" rel="noreferrer" title={m.oracle}><code>{shortAddr(m.oracle)}</code></a></td>
+                    <td><code title={m.id}>{m.id.slice(0, 10)}…{m.id.slice(-6)}</code></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

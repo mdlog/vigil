@@ -176,3 +176,6 @@ a.risk-card-bottom:hover { color: var(--amber); }
 /* the ambient glow is absolutely positioned 220 px past the right edge; without a positioned shell its overflow
    escaped .site-shell's overflow:hidden and gave every width a sideways scroll (present in the Manus export too) */
 .site-shell { position: relative; }
+.hero-markets { margin: 18px 0 0; font: 500 10px/1.4 var(--mono); letter-spacing: .015em; }
+.hero-markets a { color: var(--amber); }
+.hero-markets a:hover { color: var(--amber-bright); }

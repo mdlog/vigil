@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { DEFAULT_MARKET } from '../deployment';
-import { hashOf, tabFromHash, type Tab } from '../nav';
+import { DEFAULT_MARKET, marketOf } from '../deployment';
+import { hashOf, routeFromHash, type Route, type Tab } from '../nav';
 import { useNow } from '../hooks/useNow';
 import { useSnapshot } from '../hooks/useSnapshot';
 import { useWallet } from '../hooks/useWallet';
@@ -16,16 +16,18 @@ import { Overview } from './tabs/Overview';
 import { UseIt } from './tabs/UseIt';
 
 export function App() {
-  const [tab, setTab] = useState<Tab>(() => tabFromHash(location.hash));
+  const [route, setRoute] = useState<Route>(() => routeFromHash(location.hash));
+  const { tab } = route;
+  const market = marketOf(route.market);
   const [menuOpen, setMenuOpen] = useState(false);
-  const live = useSnapshot(DEFAULT_MARKET);
-  const wallet = useWallet(DEFAULT_MARKET); // at the root, so switching tabs never drops the connection
+  const live = useSnapshot(market);
+  const wallet = useWallet(market); // at the root, so switching tabs never drops the connection
   const nowMs = useNow(1000);
   const status = syncStatus(live.snapshot !== null, live.lastOkMs, live.error, nowMs);
 
   // back / forward between tabs
   useEffect(() => {
-    const sync = () => setTab(tabFromHash(location.hash));
+    const sync = () => setRoute(routeFromHash(location.hash));
     addEventListener('hashchange', sync);
     addEventListener('popstate', sync);
     return () => {
@@ -33,24 +35,35 @@ export function App() {
       removeEventListener('popstate', sync);
     };
   }, []);
+  // the default market stays out of the URL, so every link from before the picker is still canonical
+  const mParam = market.id === DEFAULT_MARKET.id ? null : market.symbol;
   const go = (t: Tab) => {
-    setTab(t);
+    setRoute({ tab: t, market: mParam });
     setMenuOpen(false);
-    if (location.hash !== hashOf(t)) history.pushState(null, '', hashOf(t)); // no jump to an anchor
+    const h = hashOf(t, mParam);
+    if (location.hash !== h) history.pushState(null, '', h); // no jump to an anchor
+  };
+  const pick = (symbol: string) => {
+    const m = marketOf(symbol);
+    const mp = m.id === DEFAULT_MARKET.id ? null : m.symbol;
+    setRoute({ tab, market: mp });
+    wallet.clearStatus();
+    const h = hashOf(tab, mp);
+    if (location.hash !== h) history.pushState(null, '', h);
   };
 
   return (
     <div className="dashboard-shell">
       <Sidebar tab={tab} onTab={go} open={menuOpen} onClose={() => setMenuOpen(false)} status={status} lastOkMs={live.lastOkMs} nowMs={nowMs} />
       <div className="dashboard-main">
-        <Topbar tab={tab} status={status} onMenu={() => setMenuOpen(true)} wallet={wallet} />
+        <Topbar tab={tab} status={status} onMenu={() => setMenuOpen(true)} wallet={wallet} market={market} onPick={pick} />
         <main className="dashboard-content">
           <Banner status={status} error={live.error} lastOkMs={live.lastOkMs} />
-          <PageTitle tab={tab} />
-          {tab === 'overview' && <Overview live={live} nowMs={nowMs} />}
+          <PageTitle tab={tab} market={market} />
+          {tab === 'overview' && <Overview live={live} nowMs={nowMs} market={market} />}
           {tab === 'market-risk' && <MarketRisk live={live} nowMs={nowMs} />}
           {tab === 'contracts' && <Contracts />}
-          {tab === 'use-it' && <UseIt wallet={wallet} snapshot={live.snapshot} nowMs={nowMs} />}
+          {tab === 'use-it' && <UseIt wallet={wallet} snapshot={live.snapshot} nowMs={nowMs} market={market} />}
           <Footer />
         </main>
       </div>

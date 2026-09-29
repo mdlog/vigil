@@ -5,7 +5,7 @@
 //
 //   anvil --fork-url https://rpc.testnet.chain.robinhood.com --chain-id 46630 --port 8549 --auto-impersonate &
 //   npm run dev &                                         # http://127.0.0.1:5173/vigil/dashboard/
-//   node scripts/wallet-smoke.mjs [--account 0x…] [--rpc http://127.0.0.1:8549] [--page http://127.0.0.1:5173/vigil/dashboard/]
+//   node scripts/wallet-smoke.mjs [--account 0x…] [--rpc http://127.0.0.1:8549] [--page http://127.0.0.1:5173/vigil/dashboard/] [--market AMD]
 //
 // Uses the Playwright install of ../video (pinned 1.61.1, Chromium already on disk) so the dashboard keeps no
 // browser dependency of its own.
@@ -23,6 +23,8 @@ const ACCOUNT = flag('account', '0x90351bB1E85a17D5f70c62C0cC076D39D897076D'); /
 const OUT = flag('out', 'test/out');
 const KEY_ENV = flag('key-env'); // e.g. --key-env PRIVATE_KEY: sign locally instead of relying on anvil's impersonation
 const ONLY = flag('only'); // 'migrate' runs just the migration scenario (used for the recording)
+const MARKET = flag('market'); // e.g. AMD: the same scenario on another market (the page's ?m=)
+if (ONLY === 'migrate' && MARKET && MARKET.toUpperCase() !== 'TSLA') throw new Error('the migration demo market is TSLA\'s; drop --market');
 const RECORD = args.includes('--record'); // save a video of the session to OUT/
 fs.mkdirSync(OUT, { recursive: true });
 
@@ -82,7 +84,7 @@ await page.addInitScript(() => {
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.log('  [console]', m.text().slice(0, 300)); });
-await page.goto(`${PAGE}?rpc=${encodeURIComponent(RPC)}&poll=2000#use-it`, { waitUntil: 'load' });
+await page.goto(`${PAGE}?rpc=${encodeURIComponent(RPC)}&poll=2000#use-it${MARKET ? `?m=${MARKET}` : ''}`, { waitUntil: 'load' });
 const use = page.locator('#use');
 await use.scrollIntoViewIfNeeded();
 

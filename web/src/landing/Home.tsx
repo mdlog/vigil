@@ -8,6 +8,9 @@ import { LINKS } from './links';
 import { LiveHero } from './LiveHero';
 import { useLive } from './useLive';
 
+/** Tickers of the deployment's markets, read from the manifest directly (the landing's first chunk carries no chain code). */
+const MARKET_SYMBOLS = ((manifest as { markets?: { symbol: string }[] }).markets ?? []).map((m) => m.symbol);
+
 const SYMBOL = (manifest.market as { collateralSymbol?: string }).collateralSymbol ?? 'NVDA';
 
 const FAQS: [string, string][] = [
@@ -71,6 +74,7 @@ export function Home() {
                 <a className="text-link" href="#mechanics">See how it works <span>↓</span></a>
               </div>
               <div className="hero-meta"><span><Check size={14} /> Immutable contracts</span><span><Check size={14} /> No protocol fork</span><span><Check size={14} /> Open source</span></div>
+              {MARKET_SYMBOLS.length > 1 && <p className="hero-markets"><a href={LINKS.dashboard}>{MARKET_SYMBOLS.length} markets live: {MARKET_SYMBOLS.join(' · ')} →</a></p>}
             </div>
             <div className="hero-visual">
               <div className="visual-orbit one" />
