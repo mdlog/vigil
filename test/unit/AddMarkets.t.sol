@@ -62,15 +62,35 @@ contract AddMarketsTest is Test {
         backstop.setCoverageCap(mT.id(), 100_000e6);
         lr.registerMarket(mT);
         vm.stopPrank();
-        core = AddMarket.Core(morpho, so, risk, premium, preLiq, lr, backstop, address(usdg), address(irm), 0.86e18, 0.76e18, 100_000e6, tslaOracle);
-        for (uint256 i; i < 4; ++i) stocks[i] = new MockStockToken(syms[i], syms[i]);
+        core = AddMarket.Core(
+            morpho,
+            so,
+            risk,
+            premium,
+            preLiq,
+            lr,
+            backstop,
+            address(usdg),
+            address(irm),
+            0.86e18,
+            0.76e18,
+            100_000e6,
+            tslaOracle
+        );
+        for (uint256 i; i < 4; ++i) {
+            stocks[i] = new MockStockToken(syms[i], syms[i]);
+        }
         usdg.mint(ops, 1_000e6);
     }
 
     function _addAll() internal returns (AddMarket.Added[4] memory out) {
         vm.startPrank(ops);
         for (uint256 i; i < 4; ++i) {
-            out[i] = AddMarket.add(core, AddMarket.Ticker(syms[i], address(stocks[i]), int256(100e8 + i * 1e8), address(0), address(0), 10e6), ops);
+            out[i] = AddMarket.add(
+                core,
+                AddMarket.Ticker(syms[i], address(stocks[i]), int256(100e8 + i * 1e8), address(0), address(0), 10e6),
+                ops
+            );
         }
         vm.stopPrank();
     }
@@ -104,7 +124,9 @@ contract AddMarketsTest is Test {
         uint256 before = usdg.balanceOf(ops);
         vm.startPrank(ops);
         for (uint256 i; i < 4; ++i) {
-            AddMarket.Added memory b = AddMarket.add(core, AddMarket.Ticker(syms[i], address(stocks[i]), 1e8, a[i].feed, a[i].oracle, 10e6), ops);
+            AddMarket.Added memory b = AddMarket.add(
+                core, AddMarket.Ticker(syms[i], address(stocks[i]), 1e8, a[i].feed, a[i].oracle, 10e6), ops
+            );
             assertEq(Id.unwrap(b.id), Id.unwrap(a[i].id));
         }
         vm.stopPrank();
