@@ -107,5 +107,80 @@
     "createTx": "0x272c2ce01e271ddc18ba2928645d41556f567c3ed1dbe18ab377d66f03fbfbec",
     "supplyTx": "0x8cd72b6479d5178c5db7df875336a84e68f407a0d166e5e730725318b09d2876",
     "notes": "Migration demo (20 Sep 2026): a plain-oracle TSLA/USDG market at the 62.5 % LLTV the stock-token markets on mainnet use today; 20 USDG supplied by the deployer, then moved into the Vigil market through VigilMigrator in one transaction."
-  }
+  },
+  "markets": [
+    {
+      "symbol": "TSLA",
+      "id": "0x165f9db8f5e1d9982a35dfaadb3f944cf747970c8f819f16f10105f5c7eb6e04",
+      "stock": "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+      "feed": "0x87AE97DD57686e9FBc85ce9D33cc39b6594C49C3",
+      "oracle": "0x79DA01DB22808E3A7397B788F171a7647b1bEf8f",
+      "lltv": "0.86e18",
+      "feedInitial": "364.27",
+      "tx": {
+        "feed": "0xf1caba4ac273cb538990c95198d0a2ea08d94c6cf4e2dfffb4478e165f21e93a",
+        "oracle": "0xff1e321388dde282f2e899503d8e409082e28048d5ebd9c9af50ca1072a2321e"
+      }
+    },
+    {
+      "symbol": "AMD",
+      "id": "0x29d0b6cbed25aba6ec21dec25d9488d181e5cb720831b66709489b0aac021a26",
+      "stock": "0x71178BAc73cBeb415514eB542a8995b82669778d",
+      "feed": "0xBDD5BFb78CD387A839Bc6cDA59Cda29d29094A86",
+      "oracle": "0x9d6ff67E701Af28cBdDCDd599f430A6E27D8D4DA",
+      "lltv": "0.86e18",
+      "feedInitial": "607.87",
+      "tx": {
+        "feed": "0xb76bdd71bad8148fb7327d446086889d8d6387fa20e627dca5764a99d7591cad",
+        "oracle": "0xe349681987c762df95d887179d4dde2b5cea7749374544c8c0c4dcdf345adfc9",
+        "market": "0x2c6cbf14beaf4322333a5635f518f35512f922f6bef894a818815ae49e887fa1"
+      },
+      "block": 125953911
+    },
+    {
+      "symbol": "AMZN",
+      "id": "0xc387ac09fa3b9044cba1b589c6baa487e15608016fb3c06cb24911b31cf189ae",
+      "stock": "0x5884aD2f920c162CFBbACc88C9C51AA75eC09E02",
+      "feed": "0xE872ED9cDACfEa59a0fabb9917CC55f352d1E255",
+      "oracle": "0xea3adc12a78f769c9CdeEEE2C38087b32bC87851",
+      "lltv": "0.86e18",
+      "feedInitial": "246.15",
+      "tx": {
+        "feed": "0x2e16e997509d80b0a85ec2f0e466af5c033dc8e1912c81733d0eb141f3e8b86a",
+        "oracle": "0x111f82c49a6a118ae7f194e7e8ad4206eaf333b761da9c08441aa0ec9ff79934",
+        "market": "0x44d726f2b95cd1b9a65cf50234b4549361a2aae8c2ea93add7b60817b345be00"
+      },
+      "block": 125954086
+    },
+    {
+      "symbol": "NFLX",
+      "id": "0xd50e3c91f2ff10751858eabf649e5febdd860baaea0b8b2007459790f3287399",
+      "stock": "0x3b8262A63d25f0477c4DDE23F83cfe22Cb768C93",
+      "feed": "0x1261B66B97d6005a06fd623F5eC48Ad4b2bA27ce",
+      "oracle": "0x9c3F0C236a245bF7EbE94366cf090E05c05d39B6",
+      "lltv": "0.86e18",
+      "feedInitial": "69.23",
+      "tx": {
+        "feed": "0x0565900b522dd8b19048b8f290d8c0bf57f81460e499ad1619b17a2a6bcc25aa",
+        "oracle": "0x2525839952efe05239963f5edc782d57d93e9f842dc05336fb036588ad172037",
+        "market": "0x9c7dc814d56961ebabd6b614b48ceb70785aec649103d4762958636ec65fd892"
+      },
+      "block": 125954277
+    },
+    {
+      "symbol": "PLTR",
+      "id": "0x39b5c02b794f62ddb7883e00dada7035a9844f340fcc6c1c042e2a4e2adaca82",
+      "stock": "0x1FBE1a0e43594b3455993B5dE5Fd0A7A266298d0",
+      "feed": "0xCE12F05fF5de5C257a46724990401890AF261cD2",
+      "oracle": "0xF2840F2F27C95f3940D253856d360e1d355AD68C",
+      "lltv": "0.86e18",
+      "feedInitial": "187.48",
+      "tx": {
+        "feed": "0x7dfccd5769d27475e41fd0a48d5b5b0d91bb144ebe4813b13c2100c7080b2d2b",
+        "oracle": "0x8516f52dee52c7ff263efefac8f0e3d0d1228200c7e030b678e2ec822b44daaf",
+        "market": "0x45b8c852ea0073aedaa6e01a4ec9a007a1592af707bf3c1d43df1e5b718783ea"
+      },
+      "block": 125954463
+    }
+  ]
 }
