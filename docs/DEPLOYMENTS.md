@@ -81,6 +81,36 @@ cast call 0xa1cF321C8b4B49C83CB679d821C8315213B0f0B2 "regimeOf(address)(uint8,ui
 cd ops && npm ci && npm run keeper -- status         # the same, plus every borrower's state (ops/README.md)
 ```
 
+## Four more markets — AMD, AMZN, NFLX, PLTR (29 Sep 2026)
+
+Every stock token Robinhood's testnet issues now has a Vigil market next to TSLA's. They were added to the v4
+deployment, not redeployed: the core contracts keep their state per asset and per market, and the deployer still
+held `guardian` and `calibrator`. [`script/AddMarkets.s.sol`](../script/AddMarkets.s.sol) does, per ticker, what
+`Deploy.s.sol` did for TSLA — a `MockFeed` at the 28 Sep 2026 close, `registerAsset`, `setSurface` (σ from the
+calibrator: AMD 0.0197, AMZN 0.0122, NFLX 0.0106, PLTR 0.0187), `setPremiumTables`, a `VigilOracle` with the TSLA
+oracle's constructor arguments, `createMarket` at 86 % LLTV, registration in `VigilPremium`, `VigilPreLiquidation`
+and `VigilLossReporter`, a 100,000 USDG coverage cap in the shared backstop — and seeds each market with 10 USDG.
+Each step is skipped when already done, so a re-run after a partial broadcast finishes instead of reverting.
+48 transactions, 10.7 M gas (≈ 0.00011 ETH); the 8 new contracts are source-verified.
+
+| Market | Stock token (Robinhood) | MockFeed (initial price) | VigilOracle | Morpho market id | Transactions |
+|---|---|---|---|---|---|
+| AMD | [`0x7117…778d`](https://explorer.testnet.chain.robinhood.com/address/0x71178BAc73cBeb415514eB542a8995b82669778d) | [`0xBDD5…4A86`](https://explorer.testnet.chain.robinhood.com/address/0xBDD5BFb78CD387A839Bc6cDA59Cda29d29094A86) (607.87) | [`0x9d6f…D4DA`](https://explorer.testnet.chain.robinhood.com/address/0x9d6ff67E701Af28cBdDCDd599f430A6E27D8D4DA) | `0x29d0b6cb…021a26` | [createMarket](https://explorer.testnet.chain.robinhood.com/tx/0x2c6cbf14beaf4322333a5635f518f35512f922f6bef894a818815ae49e887fa1) · [seed 10 USDG](https://explorer.testnet.chain.robinhood.com/tx/0x6ab967e26979404c28092725156cdddc5050c480c66d39162bd29710197601b3) |
+| AMZN | [`0x5884…9E02`](https://explorer.testnet.chain.robinhood.com/address/0x5884aD2f920c162CFBbACc88C9C51AA75eC09E02) | [`0xE872…E255`](https://explorer.testnet.chain.robinhood.com/address/0xE872ED9cDACfEa59a0fabb9917CC55f352d1E255) (246.15) | [`0xea3a…7851`](https://explorer.testnet.chain.robinhood.com/address/0xea3adc12a78f769c9CdeEEE2C38087b32bC87851) | `0xc387ac09…f189ae` | [createMarket](https://explorer.testnet.chain.robinhood.com/tx/0x44d726f2b95cd1b9a65cf50234b4549361a2aae8c2ea93add7b60817b345be00) · [seed 10 USDG](https://explorer.testnet.chain.robinhood.com/tx/0x6df5fc2822de8f769767b585457be2de3a60dc7b4f7c021da974a0f01d7e5bd6) |
+| NFLX | [`0x3b82…8C93`](https://explorer.testnet.chain.robinhood.com/address/0x3b8262A63d25f0477c4DDE23F83cfe22Cb768C93) | [`0x1261…27ce`](https://explorer.testnet.chain.robinhood.com/address/0x1261B66B97d6005a06fd623F5eC48Ad4b2bA27ce) (69.23) | [`0x9c3F…39B6`](https://explorer.testnet.chain.robinhood.com/address/0x9c3F0C236a245bF7EbE94366cf090E05c05d39B6) | `0xd50e3c91…287399` | [createMarket](https://explorer.testnet.chain.robinhood.com/tx/0x9c7dc814d56961ebabd6b614b48ceb70785aec649103d4762958636ec65fd892) · [seed 10 USDG](https://explorer.testnet.chain.robinhood.com/tx/0x88b0f398b9b5b225cae71241a7fdf508fdb9aa0fbcb68db3b9b9ae99ef4a069f) |
+| PLTR | [`0x1FBE…98d0`](https://explorer.testnet.chain.robinhood.com/address/0x1FBE1a0e43594b3455993B5dE5Fd0A7A266298d0) | [`0xCE12…1cD2`](https://explorer.testnet.chain.robinhood.com/address/0xCE12F05fF5de5C257a46724990401890AF261cD2) (187.48) | [`0xF284…D68C`](https://explorer.testnet.chain.robinhood.com/address/0xF2840F2F27C95f3940D253856d360e1d355AD68C) | `0x39b5c02b…daca82` | [createMarket](https://explorer.testnet.chain.robinhood.com/tx/0x45b8c852ea0073aedaa6e01a4ec9a007a1592af707bf3c1d43df1e5b718783ea) · [seed 10 USDG](https://explorer.testnet.chain.robinhood.com/tx/0x9c8a422ccced3669bd359587194fd955ebe82fd971e42725c53965e321a4f371) |
+
+```bash
+FOUNDRY_PROFILE=fork TICKERS=AMD,AMZN,NFLX,PLTR STOCK_AMD=0x… FEED_INITIAL_AMD=60786999512 … \
+  forge script script/AddMarkets.s.sol --rpc-url robinhood_testnet --broadcast --slow
+node script/markets.mjs --broadcast broadcast/AddMarkets.s.sol/46630/run-latest.json --symbols AMD:0x…,AMZN:0x…,…
+node script/verify.mjs --chain 46630 --broadcast broadcast/AddMarkets.s.sol/46630/run-latest.json
+```
+
+`markets.mjs` writes `markets[]` into the manifest (TSLA first); the dashboard's market picker, `ops/keeper.ts` and
+the feed-heartbeat / index-poke workflows read it. The heartbeat now re-stamps five feeds and the index poke covers
+five assets, from the same throwaway key: ≈ 0.00002 ETH a day at 0.01 gwei.
+
 ## End-to-end run on the live testnet
 
 `script/E2E.s.sol` drives the deployed contracts through a full cycle with five throwaway actors and asserts every step (if any `require` fails in simulation, nothing is broadcast). Nothing is minted: the deployer hands the actors Paxos USDG from the faucet (267 USDG per run) and Robinhood's TSLA tokens (0.15 per borrower) in phase 0. Run on 2026-09-19 against deployment v4 — 37 transactions, blocks 121839842–121840206, gas 5,784,531 (this is the run in the video):

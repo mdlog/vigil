@@ -74,3 +74,24 @@ Facts checked with `cast`/`curl` against the official Robinhood Chain RPCs on 19
 | V17 | Robinhood stock tokens on the testnet | ✅ TSLA `0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E`, AMD `0x7117…778d`, AMZN `0x5884…9E02`, NFLX `0x3b82…8C93`, PLTR `0x1FBE…98d0` — BeaconProxies (569 bytes, like mainnet NVDA) of the verified `Stock` implementation, registered in `AccessControlsRegistry` `0x1dF3…6Ca5`, 220–287 k holders each, 5 per faucet claim; `uiMultiplier`/`newUIMultiplier`/`effectiveAt` present, **`oraclePaused()` absent** (mainnet has it) → probed at `registerAsset`. An official NVDA (`0x9970…a737`) exists with zero supply |
 
 </details>
+
+## Seven tickers calibrated, five markets live (29 Sep 2026)
+
+The calibrator now covers AMD, AMZN, NFLX and PLTR next to NVDA, AAPL and TSLA, on the same window
+(2022-09-01 → 2026-09-19, Yahoo Finance daily OHLC). Backtest per ticker at 86 % LLTV
+([`calibrator/report_full.md`](../calibrator/report_full.md)):
+
+| Ticker | σ night (surface) | plain-market bad-debt closures | Vigil market | premium, max-LTV borrower (bp/yr) |
+|---|---|---|---|---|
+| NVDA | 0.0160 | 2 | 0 | 122.2 |
+| AAPL | 0.0087 | 0 | 0 | 124.8 |
+| TSLA | 0.0176 | 1 | 0 | 122.2 |
+| AMD | 0.0197 | 1 | 0 | 122.2 |
+| AMZN | 0.0122 | 1 | 0 | 123.2 |
+| NFLX | 0.0106 | 2 | 0 | 131.2 |
+| PLTR | 0.0187 | 2 | 0 | 122.2 |
+
+AMD, AMZN, NFLX and PLTR run on the testnet with those surfaces (see
+[DEPLOYMENTS.md](DEPLOYMENTS.md#four-more-markets--amd-amzn-nflx-pltr-29-sep-2026)). `test/unit/AddMarkets.t.sol`
+checks, on a v4-shaped deployment, that each added market is registered, priced, seeded and covered, that a re-run
+changes nothing, and that TSLA's surface is untouched; `test/unit/Surfaces.t.sol` pins TSLA's σ.

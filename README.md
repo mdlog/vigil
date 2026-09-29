@@ -65,7 +65,7 @@ the call from an EIP-712 signature).
 | Live testnet, Robinhood's TSLA token and Paxos USDG ([run](docs/DEPLOYMENTS.md#end-to-end-run-on-the-live-testnet)) | 37 transactions through supply, borrow, membership, backstop, keeper attestation, soft unwind, a replayed −10.81 % gap and a covered liquidation ([cover tx](https://explorer.testnet.chain.robinhood.com/tx/0x98e9fbf1e2382f6b7f0cca84105d465f5c41eff401f767eb70b1decf3502939a)) |
 | Migration from a plain-oracle 62.5 % market ([demo](docs/DEPLOYMENTS.md#migration-demo--leaving-a-plain-oracle-market-in-one-transaction-20-sep-2026)) | a supplier's 20 USDG moved into the Vigil market from the dashboard with one signature and one transaction ([migrate tx](https://explorer.testnet.chain.robinhood.com/tx/0xf2a4148181c355fb5668d198b30aacd54dd593e9ebf1c36ccefaf68746a5380c)) |
 | Mainnet fork, real Morpho, AdaptiveCurveIRM, USDG, NVDA token and Chainlink feeds ([`test/fork`](test/fork/MainnetFork.t.sol)) | frozen Friday feed usable with the weekend haircut; the real token's ERC-8056 and `oraclePaused` flags; full weekend cycle with a 31.20 USDG shortfall covered on the real Morpho |
-| Calibration, four years of NVDA/AAPL/TSLA gaps ([`calibrator/`](calibrator/README.md)) | no closure in the sample produced bad debt on a Vigil market; the plain market took three |
+| Calibration, four years of gaps on seven tickers — NVDA, AAPL, TSLA, AMD, AMZN, NFLX, PLTR ([`calibrator/`](calibrator/README.md)) | no closure in the sample produced bad debt on a Vigil market; the plain market took nine |
 
 Details and the on-chain facts behind every parameter: [docs/VERIFICATION.md](docs/VERIFICATION.md).
 
@@ -88,7 +88,7 @@ Requires [Foundry](https://getfoundry.sh/) (forge 1.5+) and Node 22 for the dash
 ```bash
 git clone --recurse-submodules https://github.com/mdlog/vigil.git && cd vigil
 forge build
-forge test                                                        # 80 tests: unit, scenarios, invariants, fuzz regressions
+forge test                                                        # 89 tests: unit, scenarios, invariants, fuzz regressions
 FOUNDRY_PROFILE=fork FOUNDRY_FORK_TESTS=1 forge test --match-path test/fork/MainnetFork.t.sol   # 3 tests on a mainnet fork
 forge script script/Demo.s.sol -vv                                # the historical replay
 ```
@@ -110,19 +110,32 @@ drives the whole flow in a headless browser against an Anvil fork (see [docs/DEP
 
 | Network | Chain ID | Status |
 |---|---|---|
-| Robinhood Chain testnet | 46630 | live, v4 — [manifest](deployments/robinhood-testnet-46630.json) |
+| Robinhood Chain testnet | 46630 | live, v4 — five markets — [manifest](deployments/robinhood-testnet-46630.json) |
 | Robinhood Chain mainnet | 4663 | prepared, not deployed — [runbook](docs/MAINNET.md) |
 
 Testnet v4 (19 Sep 2026): a TSLA/USDG market on Robinhood's own TSLA stock token and Paxos's USDG. The testnet
 has no Chainlink feeds or Morpho, so the feed and the IRM are mocks and Morpho Blue is deployed from source. All
-contracts are source-verified on the [explorer](https://explorer.testnet.chain.robinhood.com).
+contracts are source-verified on the [explorer](https://explorer.testnet.chain.robinhood.com). On 29 Sep 2026
+the other stock tokens Robinhood's testnet issues joined the same deployment — one market each, sharing the core
+contracts and the backstop ([`AddMarkets.s.sol`](script/AddMarkets.s.sol),
+[details](docs/DEPLOYMENTS.md#four-more-markets--amd-amzn-nflx-pltr-29-sep-2026)):
+
+| Market | Stock token | VigilOracle | σ night |
+|---|---|---|---|
+| TSLA / USDG | [`0xC9f9…Bd4E`](https://explorer.testnet.chain.robinhood.com/address/0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E) | [`0x79DA…Ef8f`](https://explorer.testnet.chain.robinhood.com/address/0x79DA01DB22808E3A7397B788F171a7647b1bEf8f) | 0.0176 |
+| AMD / USDG | [`0x7117…778d`](https://explorer.testnet.chain.robinhood.com/address/0x71178BAc73cBeb415514eB542a8995b82669778d) | [`0x9d6f…D4DA`](https://explorer.testnet.chain.robinhood.com/address/0x9d6ff67E701Af28cBdDCDd599f430A6E27D8D4DA) | 0.0197 |
+| AMZN / USDG | [`0x5884…9E02`](https://explorer.testnet.chain.robinhood.com/address/0x5884aD2f920c162CFBbACc88C9C51AA75eC09E02) | [`0xea3a…7851`](https://explorer.testnet.chain.robinhood.com/address/0xea3adc12a78f769c9CdeEEE2C38087b32bC87851) | 0.0122 |
+| NFLX / USDG | [`0x3b82…8C93`](https://explorer.testnet.chain.robinhood.com/address/0x3b8262A63d25f0477c4DDE23F83cfe22Cb768C93) | [`0x9c3F…39B6`](https://explorer.testnet.chain.robinhood.com/address/0x9c3F0C236a245bF7EbE94366cf090E05c05d39B6) | 0.0106 |
+| PLTR / USDG | [`0x1FBE…98d0`](https://explorer.testnet.chain.robinhood.com/address/0x1FBE1a0e43594b3455993B5dE5Fd0A7A266298d0) | [`0xF284…D68C`](https://explorer.testnet.chain.robinhood.com/address/0xF2840F2F27C95f3940D253856d360e1d355AD68C) | 0.0187 |
+
+The shared contracts:
 
 | Contract | Address |
 |---|---|
 | `VigilCalendar` | [`0x650e89feDA871e194a359D8f2b9eDa5FA50De503`](https://explorer.testnet.chain.robinhood.com/address/0x650e89feda871e194a359d8f2b9eda5fa50de503) |
 | `VigilSessionOracle` | [`0xa1cF321C8b4B49C83CB679d821C8315213B0f0B2`](https://explorer.testnet.chain.robinhood.com/address/0xa1cf321c8b4b49c83cb679d821c8315213b0f0b2) |
 | `VigilRiskEngine` | [`0xAEc38A26eACfE9F6c908CDd771866C5b56d87c7A`](https://explorer.testnet.chain.robinhood.com/address/0xaec38a26eacfe9f6c908cdd771866c5b56d87c7a) |
-| `VigilOracle` | [`0x79DA01DB22808E3A7397B788F171a7647b1bEf8f`](https://explorer.testnet.chain.robinhood.com/address/0x79da01db22808e3a7397b788f171a7647b1bef8f) |
+| `VigilOracle` (TSLA market) | [`0x79DA01DB22808E3A7397B788F171a7647b1bEf8f`](https://explorer.testnet.chain.robinhood.com/address/0x79da01db22808e3a7397b788f171a7647b1bef8f) |
 | `VigilPremium` | [`0x416f3716C226c99e5A0296FDDa9BA01496348EC9`](https://explorer.testnet.chain.robinhood.com/address/0x416f3716c226c99e5a0296fdda9ba01496348ec9) |
 | `VigilBackstop` | [`0x031D0cAb44C9A42e2dACf51e0F3b3dcCE72356c9`](https://explorer.testnet.chain.robinhood.com/address/0x031d0cab44c9a42e2dacf51e0f3b3dcce72356c9) |
 | `VigilPreLiquidation` | [`0xa58609838474a30Ea1eBE77d59B6f786ABC55978`](https://explorer.testnet.chain.robinhood.com/address/0xa58609838474a30ea1ebe77d59b6f786abc55978) |
@@ -178,7 +191,7 @@ docs/           design, deployments, verification, mainnet runbook, audit scope
 
 ## Status
 
-- Live on Robinhood Chain testnet with real Robinhood and Paxos tokens; landing page and dashboard on GitHub Pages; keeper and CI status watch running.
+- Live on Robinhood Chain testnet with real Robinhood and Paxos tokens: five markets (TSLA, AMD, AMZN, NFLX, PLTR) on one set of core contracts; landing page and dashboard (with a market picker) on GitHub Pages; keeper, feed heartbeat, index poke and CI status watch running over every market.
 - Mainnet: pre-flight passes (except the deployer's balance), deployment simulated, runbook and handover ready. Gated on an audit, a multisig and funding — see [docs/MAINNET.md](docs/MAINNET.md).
 - Out of scope for now: cross-asset portfolio margin, senior/junior tranches, governance, non-ERC-8056 assets, coverage for borrowers who do not pay the premium.
 
