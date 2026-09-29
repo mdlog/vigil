@@ -26,10 +26,11 @@ const word = (data, i) => `0x${data.slice(2 + 64 * i + 24, 2 + 64 * (i + 1))}`;
 const markets = new Map();
 const tsla = {
   symbol: m.market.collateralSymbol, id: m.market.id,
-  stock: getAddress(m.contracts.StockToken.address), feed: getAddress(m.contracts.MockFeed.address),
+  stock: getAddress((m.contracts.StockToken ?? m.contracts.MockStockToken).address),
+  feed: getAddress((m.contracts.Feed ?? m.contracts.MockFeed).address),
   oracle: getAddress(m.contracts.VigilOracle.address), lltv: m.market.lltv,
   ...(m.market.feedInitial ? { feedInitial: m.market.feedInitial } : {}),
-  tx: { ...(m.contracts.MockFeed.tx ? { feed: m.contracts.MockFeed.tx } : {}), ...(m.contracts.VigilOracle.tx ? { oracle: m.contracts.VigilOracle.tx } : {}) },
+  tx: { ...((m.contracts.Feed ?? m.contracts.MockFeed).tx ? { feed: (m.contracts.Feed ?? m.contracts.MockFeed).tx } : {}), ...(m.contracts.VigilOracle.tx ? { oracle: m.contracts.VigilOracle.tx } : {}) },
 };
 markets.set(tsla.symbol, tsla);
 for (const old of m.markets ?? []) if (old.symbol !== tsla.symbol) markets.set(old.symbol, old);
@@ -47,14 +48,17 @@ for (const file of (flag("broadcast", "") || "").split(",").filter(Boolean)) {
       if (l.topics[0] !== CREATE_MARKET) continue;
       const stock = getAddress(word(l.data, 1));
       const oracle = getAddress(word(l.data, 2));
+      const lltv = `${Number(BigInt(`0x${l.data.slice(2 + 64 * 4, 2 + 64 * 5)}`)) / 1e18}e18`; // MarketParams.lltv, word 4
       const symbol = symOf[stock];
       if (!symbol) throw new Error(`CreateMarket for ${stock}: pass it in --symbols`);
+      const oracleStock = getAddress(await pub.readContract({ address: oracle, abi: parseAbi(["function STOCK_TOKEN() view returns (address)"]), functionName: "STOCK_TOKEN" }));
+      if (oracleStock !== stock) throw new Error(`${symbol}: oracle ${oracle} prices ${oracleStock}, not ${stock}`);
       const feed = getAddress(await pub.readContract({ address: session, abi: parseAbi(["function feedOf(address) view returns (address)"]), functionName: "feedOf", args: [stock] }));
       const feedTx = txOf(feed);
       const oracleTx = txOf(oracle);
       markets.set(symbol, {
         ...markets.get(symbol), // keeps fields added by hand (feedInitial)
-        symbol, id: l.topics[1], stock, feed, oracle, lltv: "0.86e18",
+        symbol, id: l.topics[1], stock, feed, oracle, lltv,
         tx: { ...(feedTx ? { feed: feedTx } : {}), ...(oracleTx ? { oracle: oracleTx } : {}), market: r.transactionHash },
         block: Number(r.blockNumber),
       });

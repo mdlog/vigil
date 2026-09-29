@@ -38,7 +38,7 @@ jobs:
         run: |
           set -euo pipefail
           M=deployments/robinhood-testnet-46630.json
-          FEEDS=$(jq -r '(.markets // [{symbol: .market.collateralSymbol, feed: .contracts.MockFeed.address}])[] | "\(.symbol) \(.feed)"' "$M")
+          FEEDS=$(jq -r '(if (.markets | length) > 0 then .markets else [{symbol: .market.collateralSymbol, feed: (.contracts.Feed // .contracts.MockFeed).address}] end)[] | "\(.symbol) \(.feed)"' "$M")
           NOW=$(date +%s)
           while read -r SYM FEED; do
             ROUND=$(cast call --rpc-url "$RPC" "$FEED" 'latestRoundData()(uint80,int256,uint256,uint256,uint80)')
