@@ -90,7 +90,7 @@ held `guardian` and `calibrator`. [`script/AddMarkets.s.sol`](../script/AddMarke
 calibrator: AMD 0.0197, AMZN 0.0122, NFLX 0.0106, PLTR 0.0187), `setPremiumTables`, a `VigilOracle` with the TSLA
 oracle's constructor arguments, `createMarket` at 86 % LLTV, registration in `VigilPremium`, `VigilPreLiquidation`
 and `VigilLossReporter`, a 100,000 USDG coverage cap in the shared backstop — and seeds each market with 10 USDG.
-Each step is skipped when already done, so a re-run after a partial broadcast finishes instead of reverting.
+Each step is skipped when already done, so a re-run after a partial broadcast finishes instead of reverting; a ticker already in the manifest's `markets[]` reuses its feed and oracle (or name them with `FEED_<T>` / `ORACLE_<T>`), and `AddMarket.add` refuses a registered asset whose oracle is not given rather than open a second market.
 48 transactions, 10.7 M gas (≈ 0.00011 ETH); the 8 new contracts are source-verified.
 
 | Market | Stock token (Robinhood) | MockFeed (initial price) | VigilOracle | Morpho market id | Transactions |

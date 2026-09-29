@@ -145,13 +145,14 @@ async function status() {
     const price = await oraclePrice(m);
     const hair = await read<number>(C.risk, "haircutBps", [m.stock]);
     const cap = await read<bigint>(C.backstop, "coverageCap", [m.id]);
+    const mine = await read<bigint>(C.backstop, "coveredSoFar", [m.id]); // this market's draws; `covered` is the vault's
     const [totalSupplyAssets, , totalBorrowAssets] = await read<[bigint, bigint, bigint, bigint, bigint, bigint]>(C.morpho, "market", [m.id]);
     console.log(`== ${m.symbol}/USDG  market ${m.id}`);
     console.log(`  regime        ${REGIME[eff]} (calendar ${REGIME[cal]})  closeAt ${new Date(Number(closeAt) * 1000).toISOString()}  nextOpen ${new Date(Number(nextOpen) * 1000).toISOString()}`);
     console.log(`  feed          ${usable ? "usable" : "NOT USABLE — the oracle fails closed"}`);
     console.log(`  oracle        ${price === null ? "REVERTING" : `${(Number(price) / 1e24).toFixed(4)} USDG per ${m.symbol}`}  haircut ${(hair / 100).toFixed(2)} %`);
     console.log(`  index lag     ${Number(now - lastPoke) / 3600 | 0} h since last poke${now - lastPoke > 24n * 3600n ? "  ← poke" : ""}`);
-    console.log(`  cover cap     ${usd(cap, 0)} USDG${cap > 0n && covered * 10n > cap * 8n ? "  ← cap 80 % used" : ""}`);
+    console.log(`  cover cap     ${usd(cap, 0)} USDG, covered ${usd(mine)}${cap > 0n && mine * 10n > cap * 8n ? "  ← cap 80 % used" : ""}`);
     console.log(`  market        ${usd(totalBorrowAssets)} / ${usd(totalSupplyAssets, 0)} USDG borrowed / supplied`);
     const pos = await positions(m, price);
     console.log(`  positions     ${pos.length}`);

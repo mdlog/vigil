@@ -22,7 +22,7 @@ export interface Snapshot {
   haircutNowBps: number; engineHaircutBps: number; engineTargetBps: number; capBps: number;
   surface: Surface; eventActive: boolean;
   premiumIndex: bigint; lastPoke: number; refRatePerSecond: bigint;
-  backstopAssets: bigint; backstopShares: bigint; coverageCap: bigint; totalCovered: bigint; cooldown: number;
+  backstopAssets: bigint; backstopShares: bigint; coverageCap: bigint; totalCovered: bigint; marketCovered: bigint; cooldown: number;
   supplyAssets: bigint; borrowAssets: bigint; marketLastUpdate: number;
 }
 
@@ -33,7 +33,7 @@ export const CORE_ORDER = [
   'blockTimestamp', 'regimeOf', 'closureOf', 'feedIsUsable', 'premiumIndex', 'lastPokeOf', 'configs',
   'haircutBps', 'targetHaircutBps', 'surfaces', 'eventActive',
   'price', 'unhaircutPrice', 'currentHaircutBps', 'MARKET_HAIRCUT_CAP_BPS',
-  'totalAssets', 'totalSupply', 'coverageCapOf', 'totalCovered', 'COOLDOWN',
+  'totalAssets', 'totalSupply', 'coverageCapOf', 'totalCovered', 'coveredSoFar', 'COOLDOWN',
   'market', 'latestRoundData',
 ] as const;
 
@@ -64,7 +64,8 @@ export function coreCalls(m: Market) {
     { ...backstop, functionName: 'totalAssets' },
     { ...backstop, functionName: 'totalSupply' },
     { ...backstop, functionName: 'coverageCapOf', args: [m.id] },
-    { ...backstop, functionName: 'totalCovered' },
+    { ...backstop, functionName: 'totalCovered' }, // the whole vault, every market
+    { ...backstop, functionName: 'coveredSoFar', args: [m.id] }, // this market only
     { ...backstop, functionName: 'COOLDOWN' },
     { address: ADDR.Morpho, abi: morphoAbi, functionName: 'market', args: [m.id] },
     { address: m.feed, abi: mockFeedAbi, functionName: 'latestRoundData' }, // same signature as Chainlink's AggregatorV3
@@ -134,6 +135,7 @@ export function decodeCore(results: MulticallResult[], fetchedAtMs: number): Omi
     backstopShares: b(pick(results, 'totalSupply')),
     coverageCap: b(pick(results, 'coverageCapOf')),
     totalCovered: b(pick(results, 'totalCovered')),
+    marketCovered: b(pick(results, 'coveredSoFar')),
     cooldown: n(pick(results, 'COOLDOWN')),
     supplyAssets: b(market[0]),
     borrowAssets: b(market[2]),

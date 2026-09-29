@@ -78,6 +78,12 @@ export interface EconomyView {
   premiumIndex: string; premiumIndexNote: string; closurePremium: string; closurePremiumNote: string; backstop: string; backstopNote: string;
 }
 
+/** The backstop is shared: this market's cover, and the vault's total only when other markets drew on it too. */
+function coveredText(s: Pick<Snapshot, 'marketCovered' | 'totalCovered'>): string {
+  const mine = fmtUsd(usdg6(s.marketCovered), 2);
+  return s.marketCovered === s.totalCovered ? mine : `${mine} in this market, ${fmtUsd(usdg6(s.totalCovered), 2)} across all markets`;
+}
+
 export function economyView(s: Snapshot, nowSec: number): EconomyView {
   const perThousand = premiumPer1000(s.refRatePerSecond * BigInt(s.closureLen));
   const regimeForRate = regimeName(s.regime === 0 ? 3 : s.regime); // MARKET charges nothing: show the closed-regime rate
@@ -87,7 +93,7 @@ export function economyView(s: Snapshot, nowSec: number): EconomyView {
     closurePremium: `${fmtUsd(perThousand, 3)} USDG`,
     closurePremiumNote: `per 1,000 USDG borrowed at the reference buffer · ${regimeForRate} rate over L = ${hours(s.closureLen)} (${fmtDuration(s.closureLen)})`,
     backstop: `${fmtUsd(usdg6(s.backstopAssets), 0)} USDG`,
-    backstopNote: `coverage cap ${fmtUsd(usdg6(s.coverageCap), 0)} USDG · covered so far ${fmtUsd(usdg6(s.totalCovered), 2)} · exit cooldown ${fmtDuration(s.cooldown)}`,
+    backstopNote: `coverage cap ${fmtUsd(usdg6(s.coverageCap), 0)} USDG · covered so far ${coveredText(s)} · exit cooldown ${fmtDuration(s.cooldown)}`,
   };
 }
 

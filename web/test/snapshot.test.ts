@@ -26,6 +26,7 @@ const fixture: MulticallResult[] = [
   ok(0n),                                             // totalSupply
   ok(100000000000n),                                  // coverageCapOf
   ok(0n),                                             // totalCovered
+  ok(0n),                                             // coveredSoFar (this market)
   ok(604800n),                                        // COOLDOWN
   ok([0n, 0n, 0n, 0n, 1789790839n, 0n]),              // market
   ok([1n, 12000000000n, 1789790828n, 1789790828n, 1n]), // latestRoundData
@@ -79,6 +80,7 @@ describe('coreCalls', () => {
     expect(byName('surfaces').args).toEqual([amd.asset]);
     expect(byName('price').address).toBe(amd.oracle);
     expect(byName('coverageCapOf').args).toEqual([amd.id]);
+    expect(byName('coveredSoFar').args).toEqual([amd.id]);
     expect(byName('market').args).toEqual([amd.id]);
     expect(byName('latestRoundData').address).toBe(amd.feed);
   });

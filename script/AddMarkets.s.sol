@@ -16,7 +16,9 @@ import {MockFeed} from "../src/mocks/MockFeed.sol";
 import {VigilParams} from "./DeployLib.sol";
 
 /// Adds a stock-token market to an existing Vigil deployment. Every step is skipped when already done, so a re-run
-/// after a partial broadcast finishes the job instead of reverting AlreadySet. The caller holds guardian + calibrator.
+/// after a partial broadcast finishes the job instead of reverting AlreadySet — given the oracle already deployed for
+/// the asset (the script takes it from the manifest's markets[] or ORACLE_<T>); without it, add() refuses rather than
+/// open a second market. The caller holds guardian + calibrator.
 library AddMarket {
     using MarketParamsLib for MarketParams;
 
@@ -57,6 +59,11 @@ library AddMarket {
         a.symbol = t.symbol;
         a.stock = t.stock;
         if (c.session.isRegistered(t.stock)) {
+            // a registered asset already has its oracle; deploying another would open a second market
+            require(
+                t.oracle != address(0),
+                string.concat("AddMarket: ", t.symbol, " is registered; pass its oracle (ORACLE_", t.symbol, ")")
+            );
             a.feed = c.session.feedOf(t.stock);
         } else {
             a.feed = t.feed != address(0) ? t.feed : address(new MockFeed(8, t.feedInitial));
@@ -135,19 +142,30 @@ contract AddMarkets is Script {
             template: VigilOracle(vm.parseJsonAddress(json, ".contracts.VigilOracle.address"))
         });
         string[] memory tickers = vm.envString("TICKERS", ",");
+        // a ticker already in the manifest's markets[] reuses its feed and oracle unless FEED_<T> / ORACLE_<T> say otherwise
+        uint256 n;
+        while (vm.keyExistsJson(json, string.concat(".markets[", vm.toString(n), "].symbol"))) ++n;
         uint256 seed = vm.envOr("SEED", uint256(10e6));
         vm.startBroadcast();
         address caller = msg.sender;
         for (uint256 i; i < tickers.length; ++i) {
             string memory s = tickers[i];
+            (address feed, address oracle) = (address(0), address(0));
+            for (uint256 j; j < n; ++j) {
+                string memory k = string.concat(".markets[", vm.toString(j), "]");
+                if (keccak256(bytes(vm.parseJsonString(json, string.concat(k, ".symbol")))) == keccak256(bytes(s))) {
+                    feed = vm.parseJsonAddress(json, string.concat(k, ".feed"));
+                    oracle = vm.parseJsonAddress(json, string.concat(k, ".oracle"));
+                }
+            }
             AddMarket.Added memory a = AddMarket.add(
                 c,
                 AddMarket.Ticker({
                     symbol: s,
                     stock: vm.envAddress(string.concat("STOCK_", s)),
                     feedInitial: int256(vm.envUint(string.concat("FEED_INITIAL_", s))),
-                    feed: vm.envOr(string.concat("FEED_", s), address(0)),
-                    oracle: vm.envOr(string.concat("ORACLE_", s), address(0)),
+                    feed: vm.envOr(string.concat("FEED_", s), feed),
+                    oracle: vm.envOr(string.concat("ORACLE_", s), oracle),
                     seed: seed
                 }),
                 caller

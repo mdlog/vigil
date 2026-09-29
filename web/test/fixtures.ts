@@ -16,7 +16,7 @@ export function snap(over: Partial<Snapshot> = {}): Snapshot {
     surface: { sigmaGapWad: 17_600_000_000_000_000n, kTailBps: 30000, hFloorBps: 100, hMaxBps: 2500, updatedAt: at(19, 22, 52) },
     eventActive: false,
     premiumIndex: 29_300_000_000_000n, lastPoke: T0 - 3600, refRatePerSecond: 1_480_000_000n,
-    backstopAssets: 54_760_000n, backstopShares: 54_760_000_000_000n, coverageCap: 100_000_000_000n, totalCovered: 240_000n, cooldown: 604800,
+    backstopAssets: 54_760_000n, backstopShares: 54_760_000_000_000n, coverageCap: 100_000_000_000n, totalCovered: 240_000n, marketCovered: 240_000n, cooldown: 604800,
     supplyAssets: 140_000_000n, borrowAssets: 0n, marketLastUpdate: T0 - 7200,
     ...over,
   };

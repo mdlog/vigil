@@ -67,6 +67,10 @@ describe('economyView', () => {
       backstopNote: 'coverage cap 100,000 USDG · covered so far 0.24 · exit cooldown 7d 0h 00m',
     });
   });
+  it('shows this market\'s cover, and the shared total when other markets drew on the backstop', () => {
+    expect(economyView(snap({ marketCovered: 0n }), T0).backstopNote)
+      .toBe('coverage cap 100,000 USDG · covered so far 0.00 in this market, 0.24 across all markets · exit cooldown 7d 0h 00m');
+  });
 });
 
 describe('marketView', () => {

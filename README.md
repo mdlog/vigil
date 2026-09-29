@@ -88,7 +88,7 @@ Requires [Foundry](https://getfoundry.sh/) (forge 1.5+) and Node 22 for the dash
 ```bash
 git clone --recurse-submodules https://github.com/mdlog/vigil.git && cd vigil
 forge build
-forge test                                                        # 89 tests: unit, scenarios, invariants, fuzz regressions
+forge test                                                        # 90 tests: unit, scenarios, invariants, fuzz regressions
 FOUNDRY_PROFILE=fork FOUNDRY_FORK_TESTS=1 forge test --match-path test/fork/MainnetFork.t.sol   # 3 tests on a mainnet fork
 forge script script/Demo.s.sol -vv                                # the historical replay
 ```

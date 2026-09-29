@@ -133,6 +133,20 @@ contract AddMarketsTest is Test {
         assertEq(usdg.balanceOf(ops), before); // no second seed
     }
 
+    /// A re-run that does not name the oracle already deployed for a registered asset would open a second market.
+    function test_rerunWithoutTheOracleReverts() public {
+        _addAll();
+        vm.expectRevert(bytes("AddMarket: AMD is registered; pass its oracle (ORACLE_AMD)"));
+        this.addOne(AddMarket.Ticker("AMD", address(stocks[0]), 1e8, address(0), address(0), 10e6));
+    }
+
+    /// External, so vm.expectRevert can catch the library's revert; the prank covers the calls it makes.
+    function addOne(AddMarket.Ticker memory t) external returns (AddMarket.Added memory a) {
+        vm.startPrank(ops);
+        a = AddMarket.add(core, t, ops);
+        vm.stopPrank();
+    }
+
     function test_leavesTheTslaMarketAlone() public {
         (uint64 sigmaBefore,,,, uint64 at) = core.risk.surfaces(core.template.STOCK_TOKEN());
         _addAll();
