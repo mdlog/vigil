@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ADDR, CHAIN_ID, CONTRACT_ORDER, MARKET_ID, RPC_URL, SYMBOL } from '../src/deployment';
+import { ADDR, CHAIN_ID, CONTRACT_ORDER, DEFAULT_MARKET, MARKETS, MARKET_ID, RPC_URL, SYMBOL, marketOf } from '../src/deployment';
 
 describe('deployment manifest', () => {
   it('targets Robinhood Chain testnet', () => {
@@ -19,5 +19,26 @@ describe('deployment manifest', () => {
   });
   it('exposes the market id', () => {
     expect(MARKET_ID).toBe('0x165f9db8f5e1d9982a35dfaadb3f944cf747970c8f819f16f10105f5c7eb6e04');
+  });
+});
+
+describe('markets', () => {
+  it('lists the five Robinhood testnet stock tokens, TSLA first', () => {
+    expect(MARKETS.map((m) => m.symbol)).toEqual(['TSLA', 'AMD', 'AMZN', 'NFLX', 'PLTR']);
+    expect(DEFAULT_MARKET.symbol).toBe('TSLA');
+    expect(DEFAULT_MARKET.id).toBe(MARKET_ID);
+    expect(DEFAULT_MARKET.asset).toBe('0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E');
+    expect(DEFAULT_MARKET.oracle).toBe(ADDR.VigilOracle);
+    for (const m of MARKETS) {
+      expect(m.id).toMatch(/^0x[0-9a-f]{64}$/);
+      for (const a of [m.asset, m.feed, m.oracle]) expect(a).toMatch(/^0x[0-9a-fA-F]{40}$/);
+    }
+    expect(new Set(MARKETS.map((m) => m.id)).size).toBe(5);
+    expect(marketOf('AMD').asset).toBe('0x71178BAc73cBeb415514eB542a8995b82669778d');
+  });
+  it('falls back to TSLA for a missing or unknown ticker', () => {
+    expect(marketOf(null)).toBe(DEFAULT_MARKET);
+    expect(marketOf('XYZ')).toBe(DEFAULT_MARKET);
+    expect(marketOf('pltr').symbol).toBe('PLTR');
   });
 });

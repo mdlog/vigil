@@ -21,6 +21,13 @@ export const MARKET_ID = manifest.market.id as `0x${string}`;
 export const SYMBOL = ((manifest.market as { collateralSymbol?: string }).collateralSymbol ?? 'NVDA') as string;
 export const MULTICALL3 = '0xcA11bde05977b3631167028862bE2a173976CA11' as const;
 
+/** One Morpho market of the deployment: its stock token, the feed judged for it and the VigilOracle pricing it. */
+export interface Market {
+  symbol: string; id: `0x${string}`; asset: `0x${string}`; feed: `0x${string}`; oracle: `0x${string}`;
+  feedTx?: `0x${string}`; oracleTx?: `0x${string}`;
+}
+type ManifestMarket = { symbol: string; id: string; stock: string; feed: string; oracle: string; tx?: { feed?: string; oracle?: string } };
+
 export const ADDR = Object.fromEntries(
   Object.entries(manifest.contracts).map(([name, c]) => [name, getAddress((c as { address: string }).address)]),
 ) as Record<ContractName, `0x${string}`>;
@@ -45,6 +52,25 @@ export const HAS_MOCKS = 'MockFeed' in manifest.contracts || 'MockIRM' in manife
 export const TX_OF: Partial<Record<ContractName, `0x${string}`>> = Object.fromEntries(
   Object.entries(manifest.contracts).flatMap(([name, c]) => ((c as { tx?: string }).tx ? [[name, (c as { tx: string }).tx]] : [])),
 ) as Partial<Record<ContractName, `0x${string}`>>;
+
+/** Every market of the deployment, TSLA first. An older manifest without `markets` has exactly its one market. */
+const manifestMarkets = (manifest as { markets?: ManifestMarket[] }).markets ?? [];
+export const MARKETS: Market[] = manifestMarkets.length
+  ? manifestMarkets.map((m) => ({
+      symbol: m.symbol, id: m.id as `0x${string}`, asset: getAddress(m.stock), feed: getAddress(m.feed), oracle: getAddress(m.oracle),
+      ...(m.tx?.feed ? { feedTx: m.tx.feed as `0x${string}` } : {}), ...(m.tx?.oracle ? { oracleTx: m.tx.oracle as `0x${string}` } : {}),
+    }))
+  : [{
+      symbol: SYMBOL, id: MARKET_ID, asset: ASSET, feed: FEED, oracle: ADDR.VigilOracle,
+      ...(TX_OF.MockFeed ? { feedTx: TX_OF.MockFeed } : {}), ...(TX_OF.VigilOracle ? { oracleTx: TX_OF.VigilOracle } : {}),
+    }];
+export const DEFAULT_MARKET: Market = MARKETS[0]!;
+
+/** The market with this ticker (any case); a missing or unknown one is the default market. */
+export function marketOf(symbol: string | null | undefined): Market {
+  const s = symbol?.toUpperCase();
+  return MARKETS.find((m) => m.symbol === s) ?? DEFAULT_MARKET;
+}
 
 export const explorerAddress = (a: string) => `${EXPLORER}/address/${a}`;
 export const explorerTx = (h: string) => `${EXPLORER}/tx/${h}`;

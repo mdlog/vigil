@@ -9,14 +9,24 @@ export const TAB_LABEL: Record<Tab, string> = {
   'use-it': 'Use it',
 };
 
-/** '#use-it' → 'use-it'; anything unknown or empty → 'overview'. */
-export function tabFromHash(hash: string): Tab {
-  const h = hash.replace(/^#/, '');
-  return (TABS as readonly string[]).includes(h) ? (h as Tab) : 'overview';
+/** The tab and, after `?m=`, the market's ticker — both in the hash, so a link opens a market's tab directly. */
+export interface Route { tab: Tab; market: string | null }
+
+/** '#use-it?m=amd' → { tab: 'use-it', market: 'AMD' }; an unknown tab → overview, no m → null. */
+export function routeFromHash(hash: string): Route {
+  const [path = '', query = ''] = hash.replace(/^#/, '').split('?');
+  const tab = (TABS as readonly string[]).includes(path) ? (path as Tab) : 'overview';
+  const m = new URLSearchParams(query).get('m');
+  return { tab, market: m ? m.toUpperCase() : null };
 }
 
-export function hashOf(tab: Tab): string {
-  return `#${tab}`;
+/** '#use-it' → 'use-it'; anything unknown or empty → 'overview'. */
+export function tabFromHash(hash: string): Tab {
+  return routeFromHash(hash).tab;
+}
+
+export function hashOf(tab: Tab, market?: string | null): string {
+  return market ? `#${tab}?m=${market}` : `#${tab}`;
 }
 
 /**

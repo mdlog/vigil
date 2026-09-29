@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TAB_LABEL, hashOf, legacyDashboardUrl, tabFromHash } from '../src/nav';
+import { TAB_LABEL, hashOf, legacyDashboardUrl, routeFromHash, tabFromHash } from '../src/nav';
 
 describe('dashboard tab in the URL hash', () => {
   it('maps known hashes, falls back to overview', () => {
@@ -27,5 +27,22 @@ describe('links from before the landing page', () => {
   it('leaves every other landing URL alone', () => {
     expect(legacyDashboardUrl({ pathname: '/vigil/', search: '', hash: '' })).toBeNull();
     expect(legacyDashboardUrl({ pathname: '/vigil/', search: '?utm_source=hackquest', hash: '#faq' })).toBeNull();
+  });
+});
+
+describe('market in the URL hash', () => {
+  it('reads ?m= after the tab, upper-cased', () => {
+    expect(routeFromHash('#overview?m=AMD')).toEqual({ tab: 'overview', market: 'AMD' });
+    expect(routeFromHash('#use-it?m=amd')).toEqual({ tab: 'use-it', market: 'AMD' });
+    expect(routeFromHash('#market-risk')).toEqual({ tab: 'market-risk', market: null });
+    expect(routeFromHash('#?m=PLTR')).toEqual({ tab: 'overview', market: 'PLTR' });
+    expect(routeFromHash('')).toEqual({ tab: 'overview', market: null });
+  });
+  it('keeps old tab-only links and writes m only when given', () => {
+    expect(tabFromHash('#use-it?m=NFLX')).toBe('use-it');
+    expect(hashOf('use-it')).toBe('#use-it');
+    expect(hashOf('use-it', null)).toBe('#use-it');
+    expect(hashOf('contracts', 'AMZN')).toBe('#contracts?m=AMZN');
+    expect(routeFromHash(hashOf('overview', 'AMD'))).toEqual({ tab: 'overview', market: 'AMD' });
   });
 });
