@@ -1,5 +1,7 @@
 /** Pure helpers of the keeper: Morpho's share and health math (bit-exact with SharesMathLib / Morpho._isHealthy) and
- *  the small time grammar of `attest`. No I/O, so `npm test` covers them without a chain. */
+ *  the small time grammar of `attest`, and the market list of a manifest. No I/O, so `npm test` covers them without a chain. */
+
+import { getAddress, type Address, type Hex } from "viem";
 
 export const REGIME = ["MARKET", "EXTENDED", "OVERNIGHT", "CLOSED", "CORP_ACTION"] as const;
 
@@ -43,3 +45,38 @@ export const shortError = (e: unknown): string => {
   const reason = x.metaMessages?.find((m) => /Error:|reason/.test(m));
   return [x.shortMessage ?? x.message ?? String(e), reason].filter(Boolean).join(" — ");
 };
+
+/** One market of a deployment manifest, as the keeper works on it. */
+export type Mkt = { symbol: string; id: Hex; stock: Address; oracle: Address; feed: Address };
+
+/** `markets[]` in manifest order, or the single `market` of an older manifest; `only` keeps one ticker (any case). */
+export function marketsOf(manifest: unknown, only?: string): Mkt[] {
+  const m = manifest as {
+    market: { id: string; collateralSymbol?: string };
+    contracts: Record<string, { address: string }>;
+    markets?: { symbol: string; id: string; stock: string; oracle: string; feed: string }[];
+  };
+  const all: Mkt[] = m.markets?.length
+    ? m.markets.map((x) => ({ symbol: x.symbol, id: x.id as Hex, stock: getAddress(x.stock), oracle: getAddress(x.oracle), feed: getAddress(x.feed) }))
+    : [{
+        symbol: m.market.collateralSymbol ?? "NVDA", id: m.market.id as Hex,
+        stock: getAddress((m.contracts.StockToken ?? m.contracts.MockStockToken).address),
+        oracle: getAddress(m.contracts.VigilOracle.address),
+        feed: getAddress((m.contracts.Feed ?? m.contracts.MockFeed).address),
+      }];
+  if (!only) return all;
+  const pick = all.filter((x) => x.symbol === only.toUpperCase());
+  if (!pick.length) throw new Error(`unknown market ${only.toUpperCase()}; the manifest has ${all.map((x) => x.symbol).join(", ")}`);
+  return pick;
+}
+
+/** What an operator must act on for one market, each line prefixed with its ticker. */
+export function alertsOf(symbol: string, s: { usable: boolean; price: bigint | null; lagSeconds: bigint; uncovered: boolean; liquidatable: boolean }): string[] {
+  return [
+    !s.usable && "feed not usable",
+    s.price === null && "oracle reverting",
+    s.lagSeconds > 24n * 3600n && "premium index not persisted for 24 h",
+    s.uncovered && "uncovered shortfall",
+    s.liquidatable && "liquidatable position",
+  ].filter((x): x is string => Boolean(x)).map((x) => `${symbol}: ${x}`);
+}

@@ -9,12 +9,14 @@
  *
  * Nothing is sent unless --send is given; without it every command prints what it would do. Reads the deployment
  * manifest (MANIFEST, default deployments/robinhood-testnet-46630.json) and the ABIs from ../out (run `forge build`).
+ * Every command runs over every market of the manifest (`markets[]`); `--market <T>` narrows it to one, and `attest`
+ * acts on the first market unless one is named.
  *
  *   OPS_PRIVATE_KEY=0x… npm run keeper -- unwind --send
  *   npm run keeper -- status --rpc http://127.0.0.1:8546            # against an Anvil fork
  *   OPS_PRIVATE_KEY=0x… npm run keeper -- attest --regime CLOSED --close-at now --next-open +1h --send
  *
- * Borrowers are discovered from Morpho's Borrow events on the market since the deployment block (the public RPCs
+ * Borrowers are discovered from Morpho's Borrow events on each market since the deployment block (the public RPCs
  * keep full logs), so the keeper needs no database.
  */
 import fs from "node:fs";
@@ -24,7 +26,7 @@ import {
   type Address, type Hex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { debtOf, isHealthy, ltvBps, parseWhen, REGIME, shortError } from "./lib.ts";
+import { alertsOf, debtOf, isHealthy, ltvBps, marketsOf, parseWhen, REGIME, shortError, type Mkt } from "./lib.ts";
 
 const ROOT = path.join(path.dirname(new URL(import.meta.url).pathname), "..");
 const args = process.argv.slice(2);
@@ -59,7 +61,6 @@ const A = (name: string) => getAddress(manifest.contracts[name].address);
 const C = {
   session: { address: A("VigilSessionOracle"), abi: abi("VigilSessionOracle") },
   risk: { address: A("VigilRiskEngine"), abi: abi("VigilRiskEngine") },
-  oracle: { address: A("VigilOracle"), abi: abi("VigilOracle") },
   premium: { address: A("VigilPremium"), abi: abi("VigilPremium") },
   backstop: { address: A("VigilBackstop"), abi: abi("VigilBackstop") },
   preLiq: { address: A("VigilPreLiquidation"), abi: abi("VigilPreLiquidation") },
@@ -67,9 +68,11 @@ const C = {
   morpho: { address: A("Morpho"), abi: abi("Morpho") },
   usdg: { address: A(manifest.contracts.USDG ? "USDG" : "MockUSDG"), abi: abi("MockUSDG") },
 };
-const STOCK = A(manifest.contracts.StockToken ? "StockToken" : "MockStockToken");
-const ID = manifest.market.id;
-const SYMBOL = manifest.market.collateralSymbol ?? "NVDA";
+/** Every market of the manifest (`--market <T>` keeps one); the session oracle, risk engine and backstop are shared. */
+const MARKETS = (() => {
+  try { return marketsOf(manifest, flag("market")); } catch (e) { console.error(`error: ${(e as Error).message}`); process.exit(2); }
+})();
+const oracleOf = (m: Mkt) => ({ address: m.oracle, abi: abi("VigilOracle") });
 const usd = (v: bigint, d = 2) => Number(formatUnits(v, 6)).toFixed(d);
 const read = <T,>(c: { address: Address; abi: readonly unknown[] }, functionName: string, a: unknown[] = []) =>
   pub.readContract({ address: c.address, abi: c.abi as never, functionName, args: a }) as Promise<T>;
@@ -89,34 +92,34 @@ async function send(c: { address: Address; abi: readonly unknown[] }, functionNa
 }
 
 /** Every address that ever borrowed on the market (Borrow events since deployment). */
-async function borrowers(): Promise<Address[]> {
+async function borrowers(m: Mkt): Promise<Address[]> {
   const from = BigInt(manifest.firstBlock ?? manifest.contracts.Morpho.block ?? 0);
   const logs = await pub.getLogs({
     address: C.morpho.address,
     event: parseAbiItem("event Borrow(bytes32 indexed id, address caller, address indexed onBehalf, address indexed receiver, uint256 assets, uint256 shares)"),
-    args: { id: ID }, fromBlock: from, toBlock: "latest",
+    args: { id: m.id }, fromBlock: from, toBlock: "latest",
   });
   return [...new Set(logs.map((l) => getAddress(l.args.onBehalf!)))];
 }
 
 type Pos = { borrower: Address; collateral: bigint; debt: bigint; ltvBps: number; healthy: boolean; member: boolean; unwindable: boolean; maxRepay: bigint; shortfall: bigint; coverable: bigint; covered: boolean };
 
-async function positions(price: bigint | null): Promise<Pos[]> {
+async function positions(m: Mkt, price: bigint | null): Promise<Pos[]> {
   const out: Pos[] = [];
   // public-mapping getters return the struct fields as separate outputs → arrays
-  const [, , totalBorrowAssets, totalBorrowShares] = await read<[bigint, bigint, bigint, bigint, bigint, bigint]>(C.morpho, "market", [ID]);
-  const [, , , , lltv] = await read<[Address, Address, Address, Address, bigint]>(C.morpho, "idToMarketParams", [ID]);
-  for (const b of await borrowers()) {
-    const [, borrowShares, collateral] = await read<[bigint, bigint, bigint]>(C.morpho, "position", [ID, b]);
+  const [, , totalBorrowAssets, totalBorrowShares] = await read<[bigint, bigint, bigint, bigint, bigint, bigint]>(C.morpho, "market", [m.id]);
+  const [, , , , lltv] = await read<[Address, Address, Address, Address, bigint]>(C.morpho, "idToMarketParams", [m.id]);
+  for (const b of await borrowers(m)) {
+    const [, borrowShares, collateral] = await read<[bigint, bigint, bigint]>(C.morpho, "position", [m.id, b]);
     if (borrowShares === 0n && collateral === 0n) continue;
     const debt = debtOf(borrowShares, totalBorrowAssets, totalBorrowShares);
     const ltv = price === null ? 0 : ltvBps(collateral, price, debt);
     const healthy = price === null ? true : isHealthy(collateral, price, lltv, debt);
-    const member = await read<boolean>(C.premium, "isMember", [ID, b]);
-    const [unwindable, maxRepay] = await read<[boolean, bigint]>(C.preLiq, "isUnwindable", [ID, b]);
+    const member = await read<boolean>(C.premium, "isMember", [m.id, b]);
+    const [unwindable, maxRepay] = await read<[boolean, bigint]>(C.preLiq, "isUnwindable", [m.id, b]);
     let shortfall = 0n, coverable = 0n, covered = false;
     try {
-      const r = await read<[bigint, bigint, boolean, boolean]>(C.lossReporter, "previewCover", [ID, b]);
+      const r = await read<[bigint, bigint, boolean, boolean]>(C.lossReporter, "previewCover", [m.id, b]);
       [shortfall, coverable, , covered] = r;
     } catch { /* oracle reverting: previewCover cannot price */ }
     out.push({ borrower: b, collateral, debt, ltvBps: ltv, healthy, member, unwindable, maxRepay, shortfall, coverable, covered });
@@ -124,45 +127,50 @@ async function positions(price: bigint | null): Promise<Pos[]> {
   return out;
 }
 
-async function oraclePrice(): Promise<bigint | null> {
-  try { return await read<bigint>(C.oracle, "price"); } catch { return null; }
+async function oraclePrice(m: Mkt): Promise<bigint | null> {
+  try { return await read<bigint>(oracleOf(m), "price"); } catch { return null; }
 }
 
 async function status() {
   const now = BigInt(await chainNow());
-  const [eff, cal, closeAt, nextOpen] = await read<[number, number, bigint, bigint]>(C.session, "regimeOf", [STOCK]);
-  const usable = await read<boolean>(C.session, "feedIsUsable", [STOCK]);
-  const lastPoke = await read<bigint>(C.session, "lastPokeOf", [STOCK]);
-  const price = await oraclePrice();
-  const hair = await read<number>(C.risk, "haircutBps", [STOCK]);
   const assets = await read<bigint>(C.backstop, "totalAssets");
   const covered = await read<bigint>(C.backstop, "totalCovered");
-  const cap = await read<bigint>(C.backstop, "coverageCap", [ID]);
-  const [totalSupplyAssets, , totalBorrowAssets] = await read<[bigint, bigint, bigint, bigint, bigint, bigint]>(C.morpho, "market", [ID]);
-  console.log(`== Vigil ${manifest.market.collateralSymbol ?? ""}/USDG on chain ${manifest.chainId} (${manifestPath}) at ${new Date().toISOString()}`);
-  console.log(`  regime        ${REGIME[eff]} (calendar ${REGIME[cal]})  closeAt ${new Date(Number(closeAt) * 1000).toISOString()}  nextOpen ${new Date(Number(nextOpen) * 1000).toISOString()}`);
-  console.log(`  feed          ${usable ? "usable" : "NOT USABLE — the oracle fails closed"}`);
-  console.log(`  oracle        ${price === null ? "REVERTING" : `${(Number(price) / 1e24).toFixed(4)} USDG per ${SYMBOL}`}  haircut ${(hair / 100).toFixed(2)} %`);
-  console.log(`  index lag     ${Number(now - lastPoke) / 3600 | 0} h since last poke${now - lastPoke > 24n * 3600n ? "  ← poke" : ""}`);
-  console.log(`  backstop      ${usd(assets)} USDG, cap ${usd(cap, 0)}, covered so far ${usd(covered)}${cap > 0n && covered * 10n > cap * 8n ? "  ← cap 80 % used" : ""}`);
-  console.log(`  market        ${usd(totalBorrowAssets)} / ${usd(totalSupplyAssets, 0)} USDG borrowed / supplied`);
-  const pos = await positions(price);
-  console.log(`  positions     ${pos.length}`);
-  for (const p of pos) {
-    console.log(`    ${p.borrower}  coll ${formatUnits(p.collateral, 18)} ${SYMBOL}  debt ${usd(p.debt)}  LTV ${(p.ltvBps / 100).toFixed(1)} %  member ${p.member}` +
-      `${p.healthy ? "" : "  LIQUIDATABLE"}${p.unwindable ? `  UNWINDABLE (max repay ${usd(p.maxRepay)})` : ""}${p.shortfall > 0n ? `  SHORTFALL ${usd(p.shortfall)} (${p.covered ? "covered" : "NOT covered now"})` : ""}`);
+  console.log(`== Vigil on chain ${manifest.chainId} (${manifestPath}) at ${new Date().toISOString()}: ${MARKETS.map((m) => m.symbol).join(", ")}`);
+  const alerts: string[] = [];
+  const out = [];
+  for (const m of MARKETS) {
+    const [eff, cal, closeAt, nextOpen] = await read<[number, number, bigint, bigint]>(C.session, "regimeOf", [m.stock]);
+    const usable = await read<boolean>(C.session, "feedIsUsable", [m.stock]);
+    const lastPoke = await read<bigint>(C.session, "lastPokeOf", [m.stock]);
+    const price = await oraclePrice(m);
+    const hair = await read<number>(C.risk, "haircutBps", [m.stock]);
+    const cap = await read<bigint>(C.backstop, "coverageCap", [m.id]);
+    const [totalSupplyAssets, , totalBorrowAssets] = await read<[bigint, bigint, bigint, bigint, bigint, bigint]>(C.morpho, "market", [m.id]);
+    console.log(`== ${m.symbol}/USDG  market ${m.id}`);
+    console.log(`  regime        ${REGIME[eff]} (calendar ${REGIME[cal]})  closeAt ${new Date(Number(closeAt) * 1000).toISOString()}  nextOpen ${new Date(Number(nextOpen) * 1000).toISOString()}`);
+    console.log(`  feed          ${usable ? "usable" : "NOT USABLE — the oracle fails closed"}`);
+    console.log(`  oracle        ${price === null ? "REVERTING" : `${(Number(price) / 1e24).toFixed(4)} USDG per ${m.symbol}`}  haircut ${(hair / 100).toFixed(2)} %`);
+    console.log(`  index lag     ${Number(now - lastPoke) / 3600 | 0} h since last poke${now - lastPoke > 24n * 3600n ? "  ← poke" : ""}`);
+    console.log(`  cover cap     ${usd(cap, 0)} USDG${cap > 0n && covered * 10n > cap * 8n ? "  ← cap 80 % used" : ""}`);
+    console.log(`  market        ${usd(totalBorrowAssets)} / ${usd(totalSupplyAssets, 0)} USDG borrowed / supplied`);
+    const pos = await positions(m, price);
+    console.log(`  positions     ${pos.length}`);
+    for (const p of pos) {
+      console.log(`    ${p.borrower}  coll ${formatUnits(p.collateral, 18)} ${m.symbol}  debt ${usd(p.debt)}  LTV ${(p.ltvBps / 100).toFixed(1)} %  member ${p.member}` +
+        `${p.healthy ? "" : "  LIQUIDATABLE"}${p.unwindable ? `  UNWINDABLE (max repay ${usd(p.maxRepay)})` : ""}${p.shortfall > 0n ? `  SHORTFALL ${usd(p.shortfall)} (${p.covered ? "covered" : "NOT covered now"})` : ""}`);
+    }
+    alerts.push(...alertsOf(m.symbol, {
+      usable, price, lagSeconds: now - lastPoke,
+      uncovered: pos.some((p) => p.shortfall > 0n && !p.covered),
+      liquidatable: pos.some((p) => !p.healthy),
+    }));
+    out.push({ market: m.symbol, eff, usable, price, lastPoke, pos, cap });
   }
+  console.log(`== backstop     ${usd(assets)} USDG, covered so far ${usd(covered)} (shared by every market)`);
   if (account) console.log(`  keeper        ${account.address}: ${usd(await read<bigint>(C.usdg, "balanceOf", [account.address]))} USDG, ${formatUnits(await pub.getBalance({ address: account.address }), 18)} ETH`);
-  const alerts = [
-    !usable && "feed not usable",
-    price === null && "oracle reverting",
-    now - lastPoke > 24n * 3600n && "premium index not persisted for 24 h",
-    pos.some((p) => p.shortfall > 0n && !p.covered) && "uncovered shortfall",
-    pos.some((p) => !p.healthy) && "liquidatable position",
-  ].filter(Boolean);
   if (alerts.length) console.log(`  ALERT         ${alerts.join("; ")}`);
   if (STRICT && alerts.length) throw new Error(alerts.join("; "));
-  return { eff, usable, price, lastPoke, pos, cap, covered, assets };
+  return { markets: out, covered, assets };
 }
 
 async function ensureAllowance(spender: Address, amount: bigint) {
@@ -174,33 +182,43 @@ async function ensureAllowance(spender: Address, amount: bigint) {
 
 async function poke() {
   const now = BigInt(await chainNow());
-  const lastPoke = await read<bigint>(C.session, "lastPokeOf", [STOCK]);
   const maxLag = BigInt(flag("max-lag-hours", "6")!) * 3600n;
-  if (now - lastPoke < maxLag) { console.log(`  index persisted ${Number(now - lastPoke) / 3600 | 0} h ago — nothing to do`); return; }
-  await send(C.session, "poke", [STOCK], `poke ${SYMBOL} (lag ${Number(now - lastPoke) / 3600 | 0} h)`);
+  for (const m of MARKETS) {
+    const lastPoke = await read<bigint>(C.session, "lastPokeOf", [m.stock]);
+    if (now - lastPoke < maxLag) { console.log(`  ${m.symbol} index persisted ${Number(now - lastPoke) / 3600 | 0} h ago — nothing to do`); continue; }
+    await send(C.session, "poke", [m.stock], `poke ${m.symbol} (lag ${Number(now - lastPoke) / 3600 | 0} h)`);
+  }
 }
 
 async function unwind() {
-  const price = await oraclePrice();
-  if (price === null) { console.log("  oracle reverting — cannot unwind"); return; }
-  const todo = (await positions(price)).filter((p) => p.unwindable && p.maxRepay > 0n);
-  if (!todo.length) { console.log("  no unwindable member"); return; }
+  for (const m of MARKETS) await unwindMarket(m);
+}
+
+async function unwindMarket(m: Mkt) {
+  const price = await oraclePrice(m);
+  if (price === null) { console.log(`  ${m.symbol} oracle reverting — cannot unwind`); return; }
+  const todo = (await positions(m, price)).filter((p) => p.unwindable && p.maxRepay > 0n);
+  if (!todo.length) { console.log(`  ${m.symbol} no unwindable member`); return; }
   for (const p of todo) {
-    const disc = await read<bigint>(C.preLiq, "currentDiscountBps", [ID, p.borrower]);
+    const disc = await read<bigint>(C.preLiq, "currentDiscountBps", [m.id, p.borrower]);
     await ensureAllowance(C.preLiq.address, p.maxRepay);
-    await send(C.preLiq, "preLiquidate", [ID, p.borrower, p.maxRepay, "0x"], `unwind ${p.borrower}: repay ${usd(p.maxRepay)} USDG at ${Number(disc) / 100} % discount`);
+    await send(C.preLiq, "preLiquidate", [m.id, p.borrower, p.maxRepay, "0x"], `${m.symbol} unwind ${p.borrower}: repay ${usd(p.maxRepay)} USDG at ${Number(disc) / 100} % discount`);
   }
 }
 
 async function liquidate() {
-  const price = await oraclePrice();
-  if (price === null) { console.log("  oracle reverting — Morpho cannot liquidate either"); return; }
-  const todo = (await positions(price)).filter((p) => p.debt > 0n && !p.healthy);
-  if (!todo.length) { console.log("  every position is healthy at the oracle price"); return; }
+  for (const m of MARKETS) await liquidateMarket(m);
+}
+
+async function liquidateMarket(m: Mkt) {
+  const price = await oraclePrice(m);
+  if (price === null) { console.log(`  ${m.symbol} oracle reverting — Morpho cannot liquidate either`); return; }
+  const todo = (await positions(m, price)).filter((p) => p.debt > 0n && !p.healthy);
+  if (!todo.length) { console.log(`  ${m.symbol} every position is healthy at the oracle price`); return; }
   for (const p of todo) {
     await ensureAllowance(C.lossReporter.address, p.debt * 2n);
     const note = p.shortfall > 0n ? `shortfall ${usd(p.shortfall)}${p.covered ? " (backstop covers)" : " (NOT covered — Morpho would socialise it)"}` : "no shortfall";
-    await send(C.lossReporter, "liquidateWithCover", [ID, p.borrower, "0x"], `liquidateWithCover ${p.borrower}: debt ${usd(p.debt)}, LTV ${(p.ltvBps / 100).toFixed(1)} %, ${note}`);
+    await send(C.lossReporter, "liquidateWithCover", [m.id, p.borrower, "0x"], `${m.symbol} liquidateWithCover ${p.borrower}: debt ${usd(p.debt)}, LTV ${(p.ltvBps / 100).toFixed(1)} %, ${note}`);
   }
 }
 
@@ -211,14 +229,15 @@ async function attest() {
   if (regime < 1 || regime > 3) throw new Error("regime must be EXTENDED, OVERNIGHT or CLOSED (a keeper can never attest CORP_ACTION)");
   // issuedAt must not be ahead of the chain (attest() reverts with Expired otherwise): anchor on the latest block
   const now = await chainNow();
-  const [, , calClose, calNext] = await read<[number, number, bigint, bigint]>(C.session, "regimeOf", [STOCK]);
+  const m = MARKETS[0]!; // one asset per attestation: --market <T>, else the first market
+  const [, , calClose, calNext] = await read<[number, number, bigint, bigint]>(C.session, "regimeOf", [m.stock]);
   const closeAt = parseWhen(flag("close-at"), Number(calClose), now);
   const nextOpen = parseWhen(flag("next-open"), Number(calNext), now);
-  const a = { asset: STOCK, regime, closeAt: BigInt(closeAt), nextOpen: BigInt(nextOpen), issuedAt: BigInt(now), deadline: BigInt(now + Number(flag("deadline-minutes", "20")) * 60) };
+  const a = { asset: m.stock, regime, closeAt: BigInt(closeAt), nextOpen: BigInt(nextOpen), issuedAt: BigInt(now), deadline: BigInt(now + Number(flag("deadline-minutes", "20")) * 60) };
   const digest = await read<Hex>(C.session, "hashAttestation", [a]);
   const sig = await account.sign({ hash: digest });
   console.log(`  attestation ${REGIME[regime]} closeAt ${new Date(closeAt * 1000).toISOString()} nextOpen ${new Date(nextOpen * 1000).toISOString()} (calendar: ${new Date(Number(calClose) * 1000).toISOString()} → ${new Date(Number(calNext) * 1000).toISOString()})`);
-  await send(C.session, "attest", [a, sig], `attest ${REGIME[regime]} by ${account.address}`);
+  await send(C.session, "attest", [a, sig], `attest ${REGIME[regime]} for ${m.symbol} by ${account.address}`);
 }
 
 const commands: Record<string, () => Promise<unknown>> = { status, poke, unwind, liquidate, attest };

@@ -1,6 +1,6 @@
 name: Keeper status
 
-# Read-only watch over the live deployment: `ops/keeper.ts status --strict` exits 1 when the feed is not usable,
+# Read-only watch over every market of the live deployment: `ops/keeper.ts status --strict` exits 1 when a feed is not usable,
 # the oracle reverts, the premium index has not been persisted for 24 h, a shortfall is not covered or a position
 # is liquidatable — i.e. whenever an operator has to act. Nothing is sent; there is no key in this job.
 # Point MANIFEST at deployments/robinhood-mainnet-4663.json once that file exists.

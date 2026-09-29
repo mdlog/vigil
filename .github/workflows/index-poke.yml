@@ -1,8 +1,8 @@
 name: Index poke
 
 # VigilSessionOracle.poke persists the premium index; anyone may call it. Nothing else does on the testnet, and
-# `keeper-status` raises "premium index not persisted for 24 h" once it falls behind. This job pokes when the
-# last poke is older than 12 h, four times a day (GitHub drops scheduled runs now and then, so the slots overlap),
+# `keeper-status` raises "premium index not persisted for 24 h" once it falls behind. This job pokes every market's
+# asset whose last poke is older than 12 h, four times a day (GitHub drops scheduled runs now and then, so the slots overlap),
 # from the same throwaway key as the feed heartbeat — a poke is ≈ 0.4 M gas, ≈ 0.000004 ETH at 0.01 gwei.
 
 on:
