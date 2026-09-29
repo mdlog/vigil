@@ -21,7 +21,7 @@ warnings.filterwarnings("ignore")
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, "data")
 
-TICKERS = ["NVDA", "AAPL", "TSLA"]
+TICKERS = ["NVDA", "AAPL", "TSLA", "AMD", "AMZN", "NFLX", "PLTR"]
 START, END = "2022-09-01", "2026-09-19"
 LLTV, LTV, MARKUP = 0.86, 0.86, 1.5
 LIF = min(1.15, 1 / (0.3 * LLTV + 0.7))

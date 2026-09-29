@@ -28,6 +28,11 @@ library VigilParams {
         if (h == keccak256("NVDA")) sigma = 0.016e18;
         else if (h == keccak256("TSLA")) sigma = 0.0176e18;
         else if (h == keccak256("AAPL")) sigma = 0.0087e18;
+        // sample night σ (calibrator/report.md, 2022-09-01 → 2026-09-19), rounded to 4 decimals
+        else if (h == keccak256("AMD")) sigma = 0.0197e18;
+        else if (h == keccak256("AMZN")) sigma = 0.0122e18;
+        else if (h == keccak256("NFLX")) sigma = 0.0106e18;
+        else if (h == keccak256("PLTR")) sigma = 0.0187e18;
         else revert("VigilParams: no surface for symbol");
         return
             VigilRiskEngine.Surface({sigmaGapWad: sigma, kTailBps: 30_000, hFloorBps: 50, hMaxBps: 2_500, updatedAt: 0});
